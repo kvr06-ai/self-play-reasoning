@@ -245,7 +245,7 @@ def create_interface():
             gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Click on a square to make your move.")
 
             with gr.Column():
-                with gr.Box(elem_id="ttt-grid"):
+                with gr.Group(elem_id="ttt-grid"):
                     board_buttons = []
                     for i in range(3):
                         with gr.Row():
