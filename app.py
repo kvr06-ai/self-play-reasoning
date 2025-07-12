@@ -13,6 +13,7 @@ import traceback
 import yaml
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
+import spaces
 
 # Add src to path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -84,44 +85,17 @@ if GAMES_AVAILABLE:
 else:
     print("❌ All import methods failed - using fallback interface")
 
-
-with open('config.yaml', 'r') as f:
-    config = yaml.safe_load(f)
-
-model_name = config['model']['name']
-quantization_params = config['model'].get('quantization', {})
-
-# Create BitsAndBytesConfig if quantization is enabled
-if quantization_params and quantization_params.get('load_in_4bit'):
-    compute_dtype_str = quantization_params.get("bnb_4bit_compute_dtype", "float16")
-
-    if compute_dtype_str == "bfloat16":
-        compute_dtype = torch.bfloat16
-    else:
-        compute_dtype = torch.float16  # Default to float16
-
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type=quantization_params.get("bnb_4bit_quant_type", "nf4"),
-        bnb_4bit_compute_dtype=compute_dtype,
-        bnb_4bit_use_double_quant=quantization_params.get("bnb_4bit_use_double_quant", True),
-    )
-    # Using device_map="auto" is recommended for multi-GPU setups and large models
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        quantization_config=bnb_config,
-        device_map="auto"
-    )
-else:
-    # Fallback for no quantization
-    model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
-
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-
+# Initialize model and tokenizer as global variables
+model = None
+tokenizer = None
 
 def generate_reasoning(prompt):
     """Generate reasoning trace using Qwen model."""
-    inputs = tokenizer(prompt, return_tensors="pt")
+    global model, tokenizer
+    if model is None or tokenizer is None:
+        return "Error: Model not loaded. Please wait for the GPU to be ready."
+        
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
     outputs = model.generate(**inputs, max_length=150, do_sample=True, temperature=0.7)
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
@@ -465,7 +439,64 @@ def create_interface():
         
     return demo
 
+@spaces.GPU(duration=300)
+def main():
+    """
+    Main function to load model, create interface, and launch the Gradio app.
+    Wrapped with @spaces.GPU to allocate a GPU for this Space.
+    """
+    global model, tokenizer
+
+    print("🚀 Starting main application...")
+    print("Loading configuration...")
+    with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+
+    model_name = config['model']['name']
+    quantization_params = config['model'].get('quantization', {})
+    
+    print(f"📦 Model Name: {model_name}")
+    print(f"⚙️ Quantization Params: {quantization_params}")
+
+
+    # Create BitsAndBytesConfig if quantization is enabled
+    if quantization_params and quantization_params.get('load_in_4bit'):
+        print("💡 4-bit quantization enabled. Creating BitsAndBytesConfig...")
+        compute_dtype_str = quantization_params.get("bnb_4bit_compute_dtype", "float16")
+
+        if compute_dtype_str == "bfloat16":
+            compute_dtype = torch.bfloat16
+        else:
+            compute_dtype = torch.float16  # Default to float16
+
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type=quantization_params.get("bnb_4bit_quant_type", "nf4"),
+            bnb_4bit_compute_dtype=compute_dtype,
+            bnb_4bit_use_double_quant=quantization_params.get("bnb_4bit_use_double_quant", True),
+        )
+        # Using device_map="auto" is recommended for multi-GPU setups and large models
+        print("🧠 Loading 4-bit quantized model...")
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=bnb_config,
+            device_map="auto"
+        )
+    else:
+        print("🧠 Loading model without quantization...")
+        # Fallback for no quantization
+        model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
+
+    print("✒️ Loading tokenizer...")
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    
+    print("✅ Model and tokenizer loaded successfully.")
+
+    print("🎨 Creating Gradio interface...")
+    demo = create_interface()
+    
+    print("🚀 Launching Gradio app...")
+    demo.launch()
 
 if __name__ == "__main__":
-    demo = create_interface()
-    demo.launch()
+    main()
