@@ -105,20 +105,24 @@ def create_interface():
     
     # Custom CSS to style the TicTacToe board
     css = """
-        #ttt-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(3, 1fr);
-            gap: 5px;
+        .ttt-board {
             max-width: 300px;
             margin: auto;
         }
-        #ttt-grid .gr-button {
+        .ttt-board .gr-button {
             aspect-ratio: 1 / 1;
             font-size: 24px !important;
             font-weight: bold;
-            height: 100px !important;
-            min-width: 100px !important;
+            height: 80px !important;
+            min-width: 80px !important;
+            margin: 2px !important;
+        }
+        .ttt-board .gr-row {
+            justify-content: center;
+            gap: 0px;
+        }
+        .ttt-board .gr-column {
+            align-items: center;
         }
     """
     
@@ -241,18 +245,20 @@ def create_interface():
                 tictactoe_env.reset()
                 return *update_board_buttons(), "New game started! You are ❌ (X). Click a square to play.", "AI will show its reasoning here...", stats
             
+            # Initialize the board on startup
+            tictactoe_env.reset()
+            
             # Simplified layout focusing only on TicTacToe
             gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Click on a square to make your move.")
 
-            with gr.Column():
-                with gr.Group(elem_id="ttt-grid"):
-                    board_buttons = []
-                    for i in range(3):
-                        with gr.Row():
-                            for j in range(3):
-                                pos = i * 3 + j
-                                button = gr.Button("", elem_id=f"ttt-cell-{pos}")
-                                board_buttons.append(button)
+            with gr.Column(elem_classes=["ttt-board"]):
+                board_buttons = []
+                for i in range(3):
+                    with gr.Row(elem_classes=["ttt-row"]):
+                        for j in range(3):
+                            pos = i * 3 + j
+                            button = gr.Button("", elem_id=f"ttt-cell-{pos}", size="lg", value="")
+                            board_buttons.append(button)
 
                 with gr.Row():
                     ttt_reset_btn = gr.Button("New Game", variant="secondary")
@@ -293,6 +299,13 @@ def create_interface():
                 fn=lambda s: f"Wins: {s['wins']} | Losses: {s['losses']} | Draws: {s['draws']}",
                 inputs=ttt_stats,
                 outputs=ttt_stats_display
+            )
+            
+            # Initialize board display on load
+            demo.load(
+                fn=lambda stats: (*update_board_buttons(), "Game ready! You are ❌ (X). Click a square to play.", "AI will show its reasoning here...", stats),
+                inputs=[ttt_stats],
+                outputs=[*board_buttons, ttt_message, ttt_reasoning, ttt_stats]
             )
             gr.Markdown("---")
             gr.Markdown("🚧 **This is a development preview.** Full SPIRAL training and reasoning capabilities will be added in the next update!")
