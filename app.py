@@ -1,7 +1,18 @@
-import gradio as gr
+"""
+SPIRAL: Interactive Reasoning Game Simulator
 
-def greet(name):
-    return "Hello " + name + "!!"
+Entry point for Hugging Face Spaces deployment.
+"""
 
-demo = gr.Interface(fn=greet, inputs="text", outputs="text")
-demo.launch()
+import sys
+import os
+
+# Add the app directory to the path
+sys.path.append(os.path.join(os.path.dirname(__file__), 'app'))
+
+# Import and launch the main app
+from app import create_interface
+
+if __name__ == "__main__":
+    demo = create_interface()
+    demo.launch()
