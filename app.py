@@ -108,29 +108,29 @@ def create_interface():
         gr.Markdown("Play TicTacToe against an AI, see its step-by-step reasoning, and learn how it thinks!")
 
         if GAMES_AVAILABLE:
-            # TicTacToe specific functions
-            def get_tictactoe_board_html():
-                """Get current TicTacToe board as HTML with emojis."""
-                board = tictactoe_env.board
-                html = '<table style="border: 1px solid black; text-align: center; font-size: 24px;">'
-                for row in range(3):
-                    html += '<tr>'
-                    for col in range(3):
-                        cell = board[row, col]
-                        if cell == 1:
-                            content = '❌'
-                        elif cell == -1:
-                            content = '⭕'
-                        else:
-                            content = f'{row*3 + col}'
-                        html += f'<td style="border: 1px solid black; width: 50px; height: 50px;">{content}</td>'
-                    html += '</tr>'
-                html += '</table>'
-                return html
             
-            def get_valid_tictactoe_positions():
-                """Get list of valid position strings."""
-                return [str(i) for i in tictactoe_env._get_valid_actions()]
+            def update_board_buttons():
+                """Create a list of gr.Button updates from the current board state."""
+                updates = []
+                for i in range(9):
+                    row, col = divmod(i, 3)
+                    cell = tictactoe_env.board[row, col]
+                    val = ""
+                    interactive = True
+                    if cell == 1:
+                        val = '❌'
+                        interactive = False
+                    elif cell == -1:
+                        val = '⭕'
+                        interactive = False
+                    
+                    if tictactoe_env.game_over:
+                        interactive = False
+
+                    updates.append(gr.Button(value=val, interactive=interactive))
+                return updates
+
+            # TicTacToe specific functions (no longer need get_tictactoe_board_html)
             
             ttt_stats = gr.State({'wins': 0, 'losses': 0, 'draws': 0})
             
@@ -138,9 +138,10 @@ def create_interface():
                 """Minimax algorithm to find the best move."""
                 
                 # Base cases
-                if tictactoe_env._check_winner(1):
+                winner = tictactoe_env._check_winner()
+                if winner == 1: # Human wins
                     return -10, None
-                elif tictactoe_env._check_winner(-1):
+                elif winner == -1: # AI wins
                     return 10, None
                 elif tictactoe_env._is_draw():
                     return 0, None
@@ -169,81 +170,74 @@ def create_interface():
                 return best_score, best_move
 
             def play_tictactoe(position, stats):
-                """Play a TicTacToe move."""
+                """Play a TicTacToe move and yield updates for the button grid."""
                 if tictactoe_env.game_over:
-                    yield get_tictactoe_board_html(), "Game is over! Click 'New Game' to start again.", "", stats, get_valid_tictactoe_positions()
+                    yield *update_board_buttons(), "Game is over! Click 'New Game' to start again.", "", stats
                     return
 
                 try:
                     position = int(position)
-                    if position < 0 or position > 8:
-                        raise ValueError("Invalid position")
                     
                     # Human move
-                    obs, reward, terminated, truncated, info = tictactoe_env.step(position)
+                    tictactoe_env.step(position)
                     
-                    if terminated:
+                    if tictactoe_env.game_over:
                         winner = "You" if tictactoe_env.winner == 1 else "AI" if tictactoe_env.winner == -1 else "Draw"
                         if winner == "You": stats['wins'] += 1
                         elif winner == "AI": stats['losses'] += 1
                         else: stats['draws'] += 1
-                        yield get_tictactoe_board_html(), f"Game Over! {winner} won!", f"Final reward: {reward}", stats, []
+                        yield *update_board_buttons(), f"Game Over! {winner} won!", "", stats
                         return
 
                     # Show "thinking" indicator
-                    yield get_tictactoe_board_html(), "AI is thinking...", "🧠...", stats, []
+                    yield *update_board_buttons(), "AI is thinking...", "🧠...", stats
 
                     # AI move
                     _, ai_action = minimax(tictactoe_env.board.copy(), -1)
-                    if ai_action is None: # Handle case where minimax returns no move (e.g., game over)
+                    if ai_action is None: 
                         valid_actions = tictactoe_env._get_valid_actions()
-                        if not valid_actions: # No actions left
-                             yield get_tictactoe_board_html(), "Game is a draw!", "", stats, []
+                        if not valid_actions:
+                             yield *update_board_buttons(), "Game is a draw!", "", stats
                              return
                         ai_action = random.choice(valid_actions)
 
-
                     reasoning_prompt = f"In TicTacToe, the board is currently: {tictactoe_env.board.flatten().tolist()}. The human player (X) played position {position}. I am the AI (O). The available moves are {tictactoe_env._get_valid_actions()}. I have analyzed the game tree using minimax and determined the optimal move is {ai_action}. Explain my strategy."
                     reasoning = generate_reasoning(reasoning_prompt)
-                    obs, reward, terminated, truncated, info = tictactoe_env.step(ai_action)
+                    tictactoe_env.step(ai_action)
                     
-                    if terminated:
+                    if tictactoe_env.game_over:
                         winner = "You" if tictactoe_env.winner == 1 else "AI" if tictactoe_env.winner == -1 else "Draw"
                         if winner == "You": stats['wins'] += 1
                         elif winner == "AI": stats['losses'] += 1
                         else: stats['draws'] += 1
-                        yield get_tictactoe_board_html(), f"Game Over! {winner} won! AI played {ai_action}.", reasoning, stats, []
+                        yield *update_board_buttons(), f"Game Over! {winner} won! AI played {ai_action}.", reasoning, stats
                     else:
-                        yield get_tictactoe_board_html(), f"AI played position {ai_action}. Your turn!", reasoning, stats, get_valid_tictactoe_positions()
+                        yield *update_board_buttons(), f"AI played position {ai_action}. Your turn!", reasoning, stats
                     
                 except Exception as e:
-                    yield get_tictactoe_board_html(), f"Error: {str(e)}", "", stats, get_valid_tictactoe_positions()
-            
+                    yield *update_board_buttons(), f"Error: {str(e)}", "", stats
+
             def reset_tictactoe(stats):
                 """Reset TicTacToe game."""
                 tictactoe_env.reset()
-                return get_tictactoe_board_html(), "New game started! You are ❌ (X). Choose a position from the dropdown.", "AI will show its reasoning here...", stats, get_valid_tictactoe_positions()
+                return *update_board_buttons(), "New game started! You are ❌ (X). Click a square to play.", "AI will show its reasoning here...", stats
             
             # Simplified layout focusing only on TicTacToe
-            gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Get 3 in a row to win! **How AI Thinks**: AI will analyze the board and explain its moves.\nPositions: Top-left=0, bottom-right=8.")
-            
-            with gr.Row():
-                with gr.Column(scale=2):
-                    ttt_board = gr.HTML(
-                        label="Game Board",
-                        value=get_tictactoe_board_html()
-                    )
-                    
-                with gr.Column(scale=1):
-                    ttt_position = gr.Dropdown(
-                        label="Your Move (Valid Positions)",
-                        choices=get_valid_tictactoe_positions()
-                    )
+            gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Click on a square to make your move.")
+
+            with gr.Column():
+                board_buttons = []
+                for i in range(3):
                     with gr.Row():
-                        ttt_play_btn = gr.Button("Play Move", variant="primary")
-                        ttt_reset_btn = gr.Button("New Game", variant="secondary")
+                        for j in range(3):
+                            pos = i * 3 + j
+                            button = gr.Button("", elem_id=f"ttt-cell-{pos}")
+                            board_buttons.append(button)
+
+                with gr.Row():
+                    ttt_reset_btn = gr.Button("New Game", variant="secondary")
                     ttt_stats_display = gr.Markdown(value="Wins: 0 | Losses: 0 | Draws: 0")
-            
+
             ttt_message = gr.Textbox(
                 label="Game Status",
                 value="Choose a position to start!",
@@ -257,16 +251,22 @@ def create_interface():
                 lines=3,
                 interactive=False
             )
+
+            # Create a combined click handler
+            def on_board_click(pos, stats):
+                yield from play_tictactoe(pos, stats)
+
+            for i in range(9):
+                board_buttons[i].click(
+                    fn=on_board_click,
+                    inputs=[gr.State(i), ttt_stats],
+                    outputs=[*board_buttons, ttt_message, ttt_reasoning, ttt_stats]
+                )
             
-            ttt_play_btn.click(
-                fn=play_tictactoe,
-                inputs=[ttt_position, ttt_stats],
-                outputs=[ttt_board, ttt_message, ttt_reasoning, ttt_stats, ttt_position]
-            )
             ttt_reset_btn.click(
                 fn=reset_tictactoe,
                 inputs=[ttt_stats],
-                outputs=[ttt_board, ttt_message, ttt_reasoning, ttt_stats, ttt_position]
+                outputs=[*board_buttons, ttt_message, ttt_reasoning, ttt_stats]
             )
             # Update stats display on changes
             ttt_stats.change(
