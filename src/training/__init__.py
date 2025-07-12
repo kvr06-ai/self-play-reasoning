@@ -1,8 +1,8 @@
 """
-Training components for SPIRAL reasoning simulator.
+Training components for SPIRAL.
 
-This module contains the self-play training logic, PPO implementation with
-role-conditioned advantage estimation, and training utilities.
+This module implements the self-play training logic using PPO
+with role-conditioned advantage estimation.
 """
 
 from .self_play_trainer import SelfPlayTrainer

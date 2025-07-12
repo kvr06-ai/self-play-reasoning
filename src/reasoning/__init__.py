@@ -1,8 +1,8 @@
 """
-Reasoning components for SPIRAL reasoning simulator.
+Reasoning trace generation and analysis.
 
-This module contains reasoning trace generation, chain-of-thought processing,
-and transfer learning evaluation for testing reasoning capabilities.
+This module handles the generation of step-by-step reasoning traces
+during gameplay and transfer to non-game tasks.
 """
 
 from .trace_generator import TraceGenerator

@@ -1,8 +1,8 @@
 """
-Model implementations for SPIRAL reasoning simulator.
+SPIRAL model implementations.
 
-This module contains the SPIRAL model architecture, role-conditioned advantage
-estimation, and other model components for self-play training.
+This module contains the core SPIRAL model architecture and
+role-conditioned advantage estimation (RAE) components.
 """
 
 from .spiral_model import SpiralModel

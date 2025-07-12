@@ -1,8 +1,8 @@
 """
-Game environments for SPIRAL reasoning simulator.
+Game environments for SPIRAL training.
 
-This module contains implementations of zero-sum games used for self-play training,
-including Kuhn Poker, TicTacToe, and other strategic games.
+This module contains implementations of zero-sum games used for
+self-play training, including Kuhn Poker and TicTacToe.
 """
 
 from .kuhn_poker import KuhnPokerEnv

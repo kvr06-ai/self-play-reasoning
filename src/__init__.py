@@ -1,8 +1,8 @@
 """
-SPIRAL: Interactive Reasoning Game Simulator
+SPIRAL: Self-Play on Zero-Sum Games Incentivizes Reasoning
 
-A practical tool demonstrating how self-play training on zero-sum games
-can improve AI reasoning capabilities.
+This package implements the SPIRAL methodology for training AI agents
+through self-play on zero-sum games to improve reasoning capabilities.
 """
 
 __version__ = "0.1.0"
