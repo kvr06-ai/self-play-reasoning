@@ -1,3 +1,16 @@
+---
+title: Reasoning Simulator
+emoji: 🏆
+colorFrom: gray
+colorTo: blue
+sdk: gradio
+sdk_version: 5.36.2
+app_file: app.py
+pinned: false
+license: apache-2.0
+short_description: An interactive reasoning game simulator
+---
+
 # SPIRAL: Interactive Reasoning Game Simulator
 
 A practical, interactive tool based on the SPIRAL paper ("Self-Play on Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning") deployed on Hugging Face Spaces.
@@ -98,4 +111,4 @@ We welcome contributions! Please see CONTRIBUTING.md for guidelines.
 
 ## Support
 
-For issues and questions, please use the GitHub Issues or contact us via Hugging Face Spaces. 
+For issues and questions, please use the GitHub Issues or contact us via Hugging Face Spaces.
