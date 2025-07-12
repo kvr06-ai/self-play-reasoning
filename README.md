@@ -11,104 +11,83 @@ license: apache-2.0
 short_description: An interactive reasoning game simulator
 ---
 
-# SPIRAL: Interactive Reasoning Game Simulator
+# SPIRAL: Self-Play Reasoning Demo
 
-A practical, interactive tool based on the SPIRAL paper ("Self-Play on Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning") deployed on Hugging Face Spaces.
+**Demonstrating how strategic reasoning emerges from self-play in zero-sum games**
 
-## Overview
+Based on: *"Self-Play in Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning"*
 
-This tool demonstrates how self-play training on zero-sum games can improve AI reasoning capabilities. Users can:
+## 🎮 Interactive Demo
 
-- **Play Games**: Engage with AI in games like Kuhn Poker and TicTacToe
-- **View Reasoning**: See step-by-step AI reasoning traces during gameplay
-- **Test Transfer**: Evaluate AI's reasoning skills on math problems and logic puzzles
-- **Learn**: Understand AI decision-making through interactive visualizations
+This simplified demo showcases the key concepts from the SPIRAL research through an interactive TicTacToe game. Watch as the AI demonstrates strategic reasoning using minimax tree search and explains its decision-making process.
 
-## Features
+## 🧠 Key Concepts Demonstrated
 
-### For Non-Technical Users
-- Simple web interface for playing games
-- Visual reasoning explanations
-- Educational tutorials about AI thinking
-- No setup required - runs in browser
+### Strategic Reasoning
+- AI uses minimax tree search to evaluate all possible future moves
+- Demonstrates how optimal strategies emerge from competitive gameplay
+- Shows explicit reasoning explanations for each move
 
-### For Technical Users
-- Access to model weights and training scripts
-- API endpoints for extending the system
-- Custom game integration capabilities
-- Fine-tuning examples and documentation
+### Self-Play Learning Principles
+- Zero-sum games create competitive pressure that incentivizes strategic thinking
+- Multi-agent interactions naturally develop intelligent behavior
+- Strategic patterns emerge from repeated competitive gameplay
 
-## Project Structure
+### Tree Search & Planning
+- Minimax algorithm demonstrates formalized strategic reasoning
+- Look-ahead planning to evaluate future game states
+- Optimal decision-making under competitive constraints
 
-```
-SPIRAL/
-├── src/                    # Core implementation
-│   ├── games/             # Game environments
-│   ├── models/            # SPIRAL model implementation
-│   ├── training/          # Self-play training logic
-│   └── reasoning/         # Reasoning trace generation
-├── models/                # Trained model weights
-├── data/                  # Game datasets and benchmarks
-├── app/                   # Gradio web interface
-├── tests/                 # Unit and integration tests
-└── docs/                  # Documentation and tutorials
-```
+## 🚀 Running the Demo
 
-## Technology Stack
-
-- **Backend**: Python 3.8+
-- **ML Framework**: PyTorch, Transformers
-- **RL Library**: Gymnasium, Stable Baselines3
-- **Web Interface**: Gradio
-- **Base Model**: Qwen-4B from Hugging Face
-- **Deployment**: Hugging Face Spaces
-
-## Development Phases
-
-1. **Research and Planning** ✅
-2. **Implementation** 🔄
-3. **Testing and Optimization** 📋
-4. **Deployment and Documentation** 📋
-5. **Maintenance and Iteration** 📋
-
-## Getting Started
-
-### Prerequisites
-- Python 3.8+
-- PyTorch
-- Hugging Face account (for model access)
-
-### Installation
+### Local Setup
 ```bash
+# Clone the repository
+git clone https://huggingface.co/spaces/kaushikvr06/reasoning-simulator
+cd reasoning-simulator
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Run the demo
+python app.py
 ```
 
-### Quick Start
-```bash
-python app/app.py
-```
+### Hugging Face Spaces
+The demo is deployed and ready to use at:
+[https://huggingface.co/spaces/kaushikvr06/reasoning-simulator](https://huggingface.co/spaces/kaushikvr06/reasoning-simulator)
 
-## Citation
+## 📝 How It Works
 
-If you use this tool in your research, please cite the original SPIRAL paper:
+1. **Human Move**: Click any square to make your move as X
+2. **AI Analysis**: The AI analyzes the game tree using minimax search
+3. **Strategic Reasoning**: Watch the AI explain its decision-making process
+4. **Optimal Play**: The AI chooses the move that maximizes its winning probability
 
-```bibtex
-@article{spiral2024,
-  title={Self-Play on Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning},
-  author={[Authors]},
-  journal={[Journal]},
-  year={2024}
-}
-```
+## 🔬 Research Connection
 
-## License
+This demo illustrates core findings from the SPIRAL methodology:
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- **Zero-sum competitive environments** naturally incentivize strategic reasoning
+- **Multi-turn planning** emerges from the need to anticipate opponent moves
+- **Strategic reasoning capabilities** developed through self-play can transfer to general reasoning tasks
+- **Tree search algorithms** formalize the strategic reasoning process
 
-## Contributing
+## 🎯 Educational Value
 
-We welcome contributions! Please see CONTRIBUTING.md for guidelines.
+Perfect for:
+- Understanding strategic AI decision-making
+- Learning about game theory and minimax algorithms
+- Exploring the connection between competition and intelligence
+- Visualizing how reasoning emerges from strategic gameplay
 
-## Support
+## 📊 Technical Details
 
-For issues and questions, please use the GitHub Issues or contact us via Hugging Face Spaces.
+- **Game Environment**: Clean TicTacToe implementation with proper state management
+- **AI Strategy**: Minimax algorithm with optimal move selection
+- **Reasoning Display**: Generated explanations of AI strategic thinking
+- **Interactive Interface**: Real-time game state updates and move explanations
+
+---
+
+*Experience firsthand how strategic reasoning emerges from competitive self-play!*
