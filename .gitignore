@@ -228,3 +228,6 @@ gradio_cached_examples/
 
 # Internal development files
 execution-plan.md 
+
+# Research paper images - not needed in repo
+research-paper-snips/ 
