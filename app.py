@@ -106,23 +106,43 @@ def create_interface():
     # Custom CSS to style the TicTacToe board
     css = """
         .ttt-board {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             max-width: 300px;
-            margin: auto;
+            margin: 0 auto;
         }
-        .ttt-board .gr-button {
-            aspect-ratio: 1 / 1;
-            font-size: 24px !important;
-            font-weight: bold;
+        .ttt-board > div {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            gap: 8px;
+            margin: 4px 0;
+        }
+        .ttt-board button {
+            width: 80px !important;
             height: 80px !important;
             min-width: 80px !important;
-            margin: 2px !important;
+            min-height: 80px !important;
+            max-width: 80px !important;
+            max-height: 80px !important;
+            font-size: 24px !important;
+            font-weight: bold !important;
+            border: 2px solid #374151 !important;
+            border-radius: 8px !important;
+            background: #1f2937 !important;
+            color: white !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
-        .ttt-board .gr-row {
-            justify-content: center;
-            gap: 0px;
+        .ttt-board button:hover {
+            background: #374151 !important;
+            border-color: #6b7280 !important;
         }
-        .ttt-board .gr-column {
-            align-items: center;
+        .ttt-board button:disabled {
+            opacity: 0.8 !important;
+            cursor: not-allowed !important;
         }
     """
     
