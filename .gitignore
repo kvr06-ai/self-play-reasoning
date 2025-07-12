@@ -224,4 +224,7 @@ transformers_cache/
 
 # Gradio temporary files
 flagged/
-gradio_cached_examples/ 
+gradio_cached_examples/
+
+# Internal development files
+execution-plan.md 
