@@ -11,7 +11,8 @@ import os
 import sys
 import traceback
 import yaml
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+import torch
 
 # Add src to path for imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -86,9 +87,37 @@ else:
 
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
+
 model_name = config['model']['name']
-model = AutoModelForCausalLM.from_pretrained(model_name, **config['model']['quantization'])
+quantization_params = config['model'].get('quantization', {})
+
+# Create BitsAndBytesConfig if quantization is enabled
+if quantization_params and quantization_params.get('load_in_4bit'):
+    compute_dtype_str = quantization_params.get("bnb_4bit_compute_dtype", "float16")
+
+    if compute_dtype_str == "bfloat16":
+        compute_dtype = torch.bfloat16
+    else:
+        compute_dtype = torch.float16  # Default to float16
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type=quantization_params.get("bnb_4bit_quant_type", "nf4"),
+        bnb_4bit_compute_dtype=compute_dtype,
+        bnb_4bit_use_double_quant=quantization_params.get("bnb_4bit_use_double_quant", True),
+    )
+    # Using device_map="auto" is recommended for multi-GPU setups and large models
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        quantization_config=bnb_config,
+        device_map="auto"
+    )
+else:
+    # Fallback for no quantization
+    model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
+
 tokenizer = AutoTokenizer.from_pretrained(model_name)
+
 
 def generate_reasoning(prompt):
     """Generate reasoning trace using Qwen model."""
