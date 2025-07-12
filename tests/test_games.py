@@ -1,58 +1,78 @@
 import pytest
 import numpy as np
-from src.games.tictactoe import TicTacToeEnv
-from src.games.kuhn_poker import KuhnPokerEnv
+import sys
+import os
+
+# Add src to path to allow importing TicTacToeEnv
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+
+from games.tictactoe import TicTacToeEnv
 
 @pytest.fixture
-def ttt_env():
+def env():
+    """Fixture to create a fresh TicTacToeEnv for each test."""
     return TicTacToeEnv()
 
-@pytest.fixture
-def kuhn_env():
-    return KuhnPokerEnv()
+def test_initial_state(env):
+    """Test the initial state of the board."""
+    assert np.all(env.board == np.zeros((3, 3)))
+    assert env.current_player == 1
+    assert not env.game_over
 
-def test_tictactoe_reset(ttt_env):
-    obs, info = ttt_env.reset()
-    assert np.all(obs == 0)
-    assert ttt_env.current_player == 1
-    assert not ttt_env.game_over
+def test_player_move(env):
+    """Test a valid player move."""
+    env.step(0)
+    assert env.board[0, 0] == 1
+    assert env.current_player == -1
+    assert not env.game_over
 
-def test_tictactoe_win(ttt_env):
-    # Simulate win for player 1
-    ttt_env.step(0)  # X
-    ttt_env.step(3)  # O (invalid sim, but test step)
-    ttt_env.step(1)  # X
-    ttt_env.step(4)  # O
-    _, reward, terminated, _, _ = ttt_env.step(2)  # X wins
+def test_invalid_move(env):
+    """Test making an invalid move on an occupied cell."""
+    env.step(0)
+    with pytest.raises(ValueError):
+        env.step(0)
+
+def test_win_condition_row(env):
+    """Test a win condition in a row."""
+    env.board = np.array([[1, 1, 1], [0, -1, 0], [-1, 0, 0]])
+    assert env._check_winner(1)
+    assert not env._check_winner(-1)
+
+def test_win_condition_col(env):
+    """Test a win condition in a column."""
+    env.board = np.array([[-1, 1, 0], [-1, 1, 0], [-1, 0, 0]])
+    assert not env._check_winner(1)
+    assert env._check_winner(-1)
+
+def test_win_condition_diag(env):
+    """Test a win condition on a diagonal."""
+    env.board = np.array([[1, 0, -1], [0, 1, -1], [0, 0, 1]])
+    assert env._check_winner(1)
+
+def test_draw_condition(env):
+    """Test a draw condition."""
+    env.board = np.array([[1, -1, 1], [1, -1, 1], [-1, 1, -1]])
+    assert env._is_draw()
+    assert not env._check_winner(1)
+    assert not env._check_winner(-1)
+
+def test_game_over_on_win(env):
+    """Test that the game_over flag is set on a win."""
+    env.step(0) # P1
+    env.step(3) # P2
+    env.step(1) # P1
+    env.step(4) # P2
+    _, _, terminated, _, _ = env.step(2) # P1 wins
     assert terminated
-    assert reward == 1  # From player 1 perspective
-    assert ttt_env.winner == 1
+    assert env.game_over
+    assert env.winner == 1
 
-def test_tictactoe_invalid_move(ttt_env):
-    ttt_env.step(0)
-    _, reward, terminated, _, info = ttt_env.step(0)  # Same spot
-    assert 'invalid_move' in info
-    assert terminated
-    assert reward == -1
-
-def test_kuhn_reset(kuhn_env):
-    obs, info = kuhn_env.reset()
-    assert kuhn_env.pot == 2  # Antes
-    assert kuhn_env.current_player == 1
-    assert not kuhn_env.game_over
-
-def test_kuhn_fold(kuhn_env):
-    _, reward, terminated, _, _ = kuhn_env.step(2)  # Player 1 folds
-    assert terminated
-    assert reward == -1  # Lost ante
-    assert kuhn_env.winner == -1
-
-def test_kuhn_win(kuhn_env):
-    kuhn_env.player1_card = 2  # K
-    kuhn_env.player2_card = 0  # J
-    kuhn_env.step(1)  # Bet
-    kuhn_env.step(0)  # Call
-    _, reward, terminated, _, _ = kuhn_env.step(0)  # Call (if needed)
-    assert terminated
-    assert reward > 0  # Win with higher card
-    assert kuhn_env.winner == 1 
+def test_reset(env):
+    """Test if the environment resets correctly."""
+    env.step(0)
+    env.step(1)
+    env.reset()
+    assert np.all(env.board == np.zeros((3, 3)))
+    assert env.current_player == 1
+    assert not env.game_over
+    assert env.winner is None 

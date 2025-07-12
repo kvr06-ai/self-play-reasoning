@@ -231,3 +231,11 @@ execution-plan.md
 
 # Research paper images - not needed in repo
 research-paper-snips/ 
+
+# huggingface
+*.sagemaker_notebook.ipynb
+
+# virtualenv
+.venv/
+venv/
+ENV/ 

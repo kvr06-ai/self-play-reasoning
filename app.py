@@ -76,10 +76,10 @@ if GAMES_AVAILABLE:
     try:
         # Test instantiation
         tictactoe_env = TicTacToeEnv()
-        kuhn_env = KuhnPokerEnv()
-        print("✅ Game environments created successfully")
+        # kuhn_env = KuhnPokerEnv() # No longer needed
+        print("✅ Game environment created successfully")
     except Exception as e:
-        print(f"❌ Error creating game environments: {e}")
+        print(f"❌ Error creating game environment: {e}")
         print("📋 Full traceback:", traceback.format_exc())
         GAMES_AVAILABLE = False
 else:
@@ -105,10 +105,9 @@ def create_interface():
     
     with gr.Blocks(title="SPIRAL: Interactive Reasoning Game Simulator", theme=gr.themes.Soft()) as demo:
         gr.Markdown("# 🎮 SPIRAL: Interactive Reasoning Game Simulator")
-        
+        gr.Markdown("Play TicTacToe against an AI, see its step-by-step reasoning, and learn how it thinks!")
+
         if GAMES_AVAILABLE:
-            gr.Markdown("**Demo Version** - Experience zero-sum games with AI! Full reasoning capabilities coming soon. Learn how AI makes decisions in competitive scenarios.")
-            
             # TicTacToe specific functions
             def get_tictactoe_board_html():
                 """Get current TicTacToe board as HTML with emojis."""
@@ -135,11 +134,46 @@ def create_interface():
             
             ttt_stats = gr.State({'wins': 0, 'losses': 0, 'draws': 0})
             
+            def minimax(board, player):
+                """Minimax algorithm to find the best move."""
+                
+                # Base cases
+                if tictactoe_env._check_winner(1):
+                    return -10, None
+                elif tictactoe_env._check_winner(-1):
+                    return 10, None
+                elif tictactoe_env._is_draw():
+                    return 0, None
+
+                best_move = None
+                if player == -1: # AI is player -1 (O), maximizing player
+                    best_score = -float('inf')
+                    for move in tictactoe_env._get_valid_actions():
+                        row, col = divmod(move, 3)
+                        board[row, col] = -1
+                        score, _ = minimax(board.copy(), 1)
+                        board[row, col] = 0 # Undo move
+                        if score > best_score:
+                            best_score = score
+                            best_move = move
+                else: # Human is player 1 (X), minimizing player
+                    best_score = float('inf')
+                    for move in tictactoe_env._get_valid_actions():
+                        row, col = divmod(move, 3)
+                        board[row, col] = 1
+                        score, _ = minimax(board.copy(), -1)
+                        board[row, col] = 0 # Undo move
+                        if score < best_score:
+                            best_score = score
+                            best_move = move
+                return best_score, best_move
+
             def play_tictactoe(position, stats):
                 """Play a TicTacToe move."""
                 if tictactoe_env.game_over:
-                    return get_tictactoe_board_html(), "Game is over! Click 'New Game' to start again.", "", stats, get_valid_tictactoe_positions()
-                
+                    yield get_tictactoe_board_html(), "Game is over! Click 'New Game' to start again.", "", stats, get_valid_tictactoe_positions()
+                    return
+
                 try:
                     position = int(position)
                     if position < 0 or position > 8:
@@ -153,12 +187,23 @@ def create_interface():
                         if winner == "You": stats['wins'] += 1
                         elif winner == "AI": stats['losses'] += 1
                         else: stats['draws'] += 1
-                        return get_tictactoe_board_html(), f"Game Over! {winner} won!", f"Final reward: {reward}", stats, []
-                    
+                        yield get_tictactoe_board_html(), f"Game Over! {winner} won!", f"Final reward: {reward}", stats, []
+                        return
+
+                    # Show "thinking" indicator
+                    yield get_tictactoe_board_html(), "AI is thinking...", "🧠...", stats, []
+
                     # AI move
-                    valid_actions = tictactoe_env._get_valid_actions()
-                    ai_action = random.choice(valid_actions)  # Still random for now; integrate policy later
-                    reasoning_prompt = f"In TicTacToe, board state: {tictactoe_env.board.flatten().tolist()}. Valid moves: {valid_actions}. Explain why to choose one randomly as placeholder."
+                    _, ai_action = minimax(tictactoe_env.board.copy(), -1)
+                    if ai_action is None: # Handle case where minimax returns no move (e.g., game over)
+                        valid_actions = tictactoe_env._get_valid_actions()
+                        if not valid_actions: # No actions left
+                             yield get_tictactoe_board_html(), "Game is a draw!", "", stats, []
+                             return
+                        ai_action = random.choice(valid_actions)
+
+
+                    reasoning_prompt = f"In TicTacToe, the board is currently: {tictactoe_env.board.flatten().tolist()}. The human player (X) played position {position}. I am the AI (O). The available moves are {tictactoe_env._get_valid_actions()}. I have analyzed the game tree using minimax and determined the optimal move is {ai_action}. Explain my strategy."
                     reasoning = generate_reasoning(reasoning_prompt)
                     obs, reward, terminated, truncated, info = tictactoe_env.step(ai_action)
                     
@@ -167,204 +212,71 @@ def create_interface():
                         if winner == "You": stats['wins'] += 1
                         elif winner == "AI": stats['losses'] += 1
                         else: stats['draws'] += 1
-                        return get_tictactoe_board_html(), f"Game Over! {winner} won! AI played {ai_action}.", reasoning, stats, []
+                        yield get_tictactoe_board_html(), f"Game Over! {winner} won! AI played {ai_action}.", reasoning, stats, []
                     else:
-                        return get_tictactoe_board_html(), f"AI played position {ai_action}. Your turn!", reasoning, stats, get_valid_tictactoe_positions()
+                        yield get_tictactoe_board_html(), f"AI played position {ai_action}. Your turn!", reasoning, stats, get_valid_tictactoe_positions()
                     
                 except Exception as e:
-                    return get_tictactoe_board_html(), f"Error: {str(e)}", "", stats, get_valid_tictactoe_positions()
+                    yield get_tictactoe_board_html(), f"Error: {str(e)}", "", stats, get_valid_tictactoe_positions()
             
             def reset_tictactoe(stats):
                 """Reset TicTacToe game."""
                 tictactoe_env.reset()
                 return get_tictactoe_board_html(), "New game started! You are ❌ (X). Choose a position from the dropdown.", "AI will show its reasoning here...", stats, get_valid_tictactoe_positions()
             
-            def get_kuhn_poker_state_html():
-                """Get current Kuhn Poker state as HTML."""
-                card = ['J', 'Q', 'K'][kuhn_env.player1_card]
-                html = f"<div style='font-size: 18px;'><p>🃏 Your Card: <strong>{card}</strong></p>"
-                html += f"<p>💰 Pot: <strong>{kuhn_env.pot}</strong></p>"
-                html += f"<p>🎯 Current Player: <strong>{kuhn_env.current_player}</strong></p>"
-                html += f"<p>🔄 Betting Round: <strong>{kuhn_env.betting_round}</strong></p>"
-                
-                if kuhn_env.actions_history:
-                    html += "<p>📋 Actions:</p><ul>"
-                    for player, action in kuhn_env.actions_history:
-                        action_name = ["Check/Call", "Bet", "Fold"][action]
-                        html += f"<li>Player {player}: {action_name}</li>"
-                    html += "</ul>"
-                
-                html += "</div>"
-                return html
+            # Simplified layout focusing only on TicTacToe
+            gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Get 3 in a row to win! **How AI Thinks**: AI will analyze the board and explain its moves.\nPositions: Top-left=0, bottom-right=8.")
             
-            kuhn_stats = gr.State({'wins': 0, 'losses': 0, 'draws': 0})
-            
-            def play_kuhn_poker(action_name, stats):
-                """Play a Kuhn Poker move."""
-                if kuhn_env.game_over:
-                    return get_kuhn_poker_state_html(), "Game is over! Click 'New Game' to start again.", "", stats
-                
-                try:
-                    action_map = {"Check/Call": 0, "Bet": 1, "Fold": 2}
-                    if action_name not in action_map:
-                        raise ValueError("Invalid action")
+            with gr.Row():
+                with gr.Column(scale=2):
+                    ttt_board = gr.HTML(
+                        label="Game Board",
+                        value=get_tictactoe_board_html()
+                    )
                     
-                    action = action_map[action_name]
-                    
-                    # Human move
-                    obs, reward, terminated, truncated, info = kuhn_env.step(action)
-                    
-                    if terminated:
-                        winner = "You" if kuhn_env.winner == 1 else "AI" if kuhn_env.winner == -1 else "Draw"
-                        if winner == "You": stats['wins'] += 1
-                        elif winner == "AI": stats['losses'] += 1
-                        else: stats['draws'] += 1
-                        return get_kuhn_poker_state_html(), f"Game Over! {winner} won! Pot: {kuhn_env.pot}", f"Your final reward: {reward}", stats
-                    
-                    # AI move
-                    valid_actions = kuhn_env._get_valid_actions()
-                    ai_action = random.choice(valid_actions)
-                    ai_action_name = ["Check/Call", "Bet", "Fold"][ai_action]
-                    reasoning_prompt = f"In Kuhn Poker, my card: {kuhn_env.player2_card}, history: {kuhn_env.actions_history}. Valid actions: {valid_actions}. Explain choice."
-                    reasoning = generate_reasoning(reasoning_prompt)
-                    obs, reward, terminated, truncated, info = kuhn_env.step(ai_action)
-                    
-                    if terminated:
-                        winner = "You" if kuhn_env.winner == 1 else "AI" if kuhn_env.winner == -1 else "Draw"
-                        if winner == "You": stats['wins'] += 1
-                        elif winner == "AI": stats['losses'] += 1
-                        else: stats['draws'] += 1
-                        return get_kuhn_poker_state_html(), f"AI chose {ai_action_name}. Game Over! {winner} won! Pot: {kuhn_env.pot}", reasoning, stats
-                    else:
-                        return get_kuhn_poker_state_html(), f"AI chose {ai_action_name}. Your turn!", reasoning, stats
-                    
-                except Exception as e:
-                    return get_kuhn_poker_state_html(), f"Error: {str(e)}", "", stats
-            
-            def reset_kuhn_poker(stats):
-                """Reset Kuhn Poker game."""
-                kuhn_env.reset()
-                card = ['J', 'Q', 'K'][kuhn_env.player1_card]
-                return get_kuhn_poker_state_html(), "New game started! You are Player 1. Choose your action.", f"Your card: {card}", stats
-            
-            with gr.Tabs():
-                # TicTacToe Tab
-                with gr.TabItem("🎯 TicTacToe"):
-                    gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Get 3 in a row to win! **How AI Thinks**: AI will analyze the board and explain its moves (random for now; full reasoning soon).\nPositions: Top-left=0, bottom-right=8.")
-                    
+                with gr.Column(scale=1):
+                    ttt_position = gr.Dropdown(
+                        label="Your Move (Valid Positions)",
+                        choices=get_valid_tictactoe_positions()
+                    )
                     with gr.Row():
-                        with gr.Column(scale=2):
-                            ttt_board = gr.HTML(
-                                label="Game Board",
-                                value=get_tictactoe_board_html()
-                            )
-                            
-                        with gr.Column(scale=1):
-                            ttt_position = gr.Dropdown(
-                                label="Your Move (Valid Positions)",
-                                choices=get_valid_tictactoe_positions()
-                            )
-                            with gr.Row():
-                                ttt_play_btn = gr.Button("Play Move", variant="primary")
-                                ttt_reset_btn = gr.Button("New Game", variant="secondary")
-                            ttt_stats_display = gr.Markdown(value="Wins: 0 | Losses: 0 | Draws: 0")
-                    
-                    ttt_message = gr.Textbox(
-                        label="Game Status",
-                        value="Choose a position to start!",
-                        lines=2,
-                        interactive=False
-                    )
-                    
-                    ttt_reasoning = gr.Textbox(
-                        label="AI Reasoning",
-                        value="AI will explain its thought process here...",
-                        lines=3,
-                        interactive=False
-                    )
-                    
-                    ttt_play_btn.click(
-                        fn=play_tictactoe,
-                        inputs=[ttt_position, ttt_stats],
-                        outputs=[ttt_board, ttt_message, ttt_reasoning, ttt_stats, ttt_position]
-                    )
-                    ttt_reset_btn.click(
-                        fn=reset_tictactoe,
-                        inputs=[ttt_stats],
-                        outputs=[ttt_board, ttt_message, ttt_reasoning, ttt_stats, ttt_position]
-                    )
-                    # Update stats display on changes
-                    ttt_stats.change(
-                        fn=lambda s: f"Wins: {s['wins']} | Losses: {s['losses']} | Draws: {s['draws']}",
-                        inputs=ttt_stats,
-                        outputs=ttt_stats_display
-                    )
-                
-                # Kuhn Poker Tab
-                with gr.TabItem("🃏 Kuhn Poker"):
-                    gr.Markdown("### Play Kuhn Poker against AI\nSimplified poker with J/Q/K cards. You ante 1 chip each. Higher card wins if no fold. **How AI Thinks**: AI evaluates card strength and bets (random now; strategic soon).")
-                    
-                    with gr.Row():
-                        with gr.Column(scale=2):
-                            kuhn_state = gr.HTML(
-                                label="Game State",
-                                value=get_kuhn_poker_state_html()
-                            )
-                            
-                        with gr.Column(scale=1):
-                            kuhn_action = gr.Dropdown(
-                                label="Your Action",
-                                choices=["Check/Call", "Bet", "Fold"],
-                                value="Check/Call"
-                            )
-                            with gr.Row():
-                                kuhn_play_btn = gr.Button("Play Action", variant="primary")
-                                kuhn_reset_btn = gr.Button("New Game", variant="secondary")
-                            kuhn_stats_display = gr.Markdown(value="Wins: 0 | Losses: 0 | Draws: 0")
-                    
-                    kuhn_message = gr.Textbox(
-                        label="Game Status",
-                        value="Choose your action!",
-                        lines=2,
-                        interactive=False
-                    )
-                    
-                    kuhn_reasoning = gr.Textbox(
-                        label="AI Reasoning",
-                        value="AI will explain its thought process here...",
-                        lines=3,
-                        interactive=False
-                    )
-                    
-                    kuhn_play_btn.click(
-                        fn=play_kuhn_poker,
-                        inputs=[kuhn_action, kuhn_stats],
-                        outputs=[kuhn_state, kuhn_message, kuhn_reasoning, kuhn_stats]
-                    )
-                    kuhn_reset_btn.click(
-                        fn=reset_kuhn_poker,
-                        inputs=[kuhn_stats],
-                        outputs=[kuhn_state, kuhn_message, kuhn_reasoning, kuhn_stats]
-                    )
-                    kuhn_stats.change(
-                        fn=lambda s: f"Wins: {s['wins']} | Losses: {s['losses']} | Draws: {s['draws']}",
-                        inputs=kuhn_stats,
-                        outputs=kuhn_stats_display
-                    )
-                
-                # New Transfer Test Tab (stub)
-                with gr.TabItem("🔬 Transfer Test"):
-                    gr.Markdown("### Test AI Reasoning on Non-Game Tasks\n(Coming Soon) Enter a math problem or logic puzzle to see transferred reasoning from game training.")
-                    transfer_input = gr.Textbox(label="Input Prompt", placeholder="E.g., 'Solve: 2x + 3 = 7'")
-                    transfer_output = gr.Textbox(label="AI Response", interactive=False)
-                    transfer_btn = gr.Button("Test")
-                    
-                    def transfer_test(input):
-                        cot_prompt = f"Solve step-by-step: {input}"
-                        return generate_reasoning(cot_prompt)
-                    
-                    transfer_btn.click(fn=transfer_test, inputs=transfer_input, outputs=transfer_output)
+                        ttt_play_btn = gr.Button("Play Move", variant="primary")
+                        ttt_reset_btn = gr.Button("New Game", variant="secondary")
+                    ttt_stats_display = gr.Markdown(value="Wins: 0 | Losses: 0 | Draws: 0")
             
+            ttt_message = gr.Textbox(
+                label="Game Status",
+                value="Choose a position to start!",
+                lines=2,
+                interactive=False
+            )
+            
+            ttt_reasoning = gr.Textbox(
+                label="AI Reasoning",
+                value="AI will explain its thought process here...",
+                lines=3,
+                interactive=False
+            )
+            
+            ttt_play_btn.click(
+                fn=play_tictactoe,
+                inputs=[ttt_position, ttt_stats],
+                outputs=[ttt_board, ttt_message, ttt_reasoning, ttt_stats, ttt_position]
+            )
+            ttt_reset_btn.click(
+                fn=reset_tictactoe,
+                inputs=[ttt_stats],
+                outputs=[ttt_board, ttt_message, ttt_reasoning, ttt_stats, ttt_position]
+            )
+            # Update stats display on changes
+            ttt_stats.change(
+                fn=lambda s: f"Wins: {s['wins']} | Losses: {s['losses']} | Draws: {s['draws']}",
+                inputs=ttt_stats,
+                outputs=ttt_stats_display
+            )
+            gr.Markdown("---")
+            gr.Markdown("🚧 **This is a development preview.** Full SPIRAL training and reasoning capabilities will be added in the next update!")
+
         else:
             # Fallback interface when games don't load
             gr.Markdown("⚠️ **Game modules could not be loaded.** Showing diagnostic information.")
@@ -430,10 +342,7 @@ def create_interface():
             """)
             gr.Markdown("**New in this version:** Visual boards, stats tracking, and transfer test stub!")
         
-        if GAMES_AVAILABLE:
-            gr.Markdown("---")
-            gr.Markdown("🚧 **This is a development preview.** Full SPIRAL training and reasoning capabilities will be added in the next update!")
-        else:
+        if not GAMES_AVAILABLE:
             gr.Markdown("---")
             gr.Markdown("🔄 **Dependencies are loading.** Check the diagnostic info above and refresh in a few minutes!")
         
