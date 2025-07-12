@@ -103,7 +103,26 @@ def generate_reasoning(prompt):
 def create_interface():
     """Create the main Gradio interface."""
     
-    with gr.Blocks(title="SPIRAL: Interactive Reasoning Game Simulator", theme=gr.themes.Soft()) as demo:
+    # Custom CSS to style the TicTacToe board
+    css = """
+        #ttt-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 5px;
+            max-width: 300px;
+            margin: auto;
+        }
+        #ttt-grid .gr-button {
+            aspect-ratio: 1 / 1;
+            font-size: 24px !important;
+            font-weight: bold;
+            height: 100px !important;
+            min-width: 100px !important;
+        }
+    """
+    
+    with gr.Blocks(title="SPIRAL: Interactive Reasoning Game Simulator", theme=gr.themes.Soft(), css=css) as demo:
         gr.Markdown("# 🎮 SPIRAL: Interactive Reasoning Game Simulator")
         gr.Markdown("Play TicTacToe against an AI, see its step-by-step reasoning, and learn how it thinks!")
 
@@ -226,13 +245,14 @@ def create_interface():
             gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Click on a square to make your move.")
 
             with gr.Column():
-                board_buttons = []
-                for i in range(3):
-                    with gr.Row():
-                        for j in range(3):
-                            pos = i * 3 + j
-                            button = gr.Button("", elem_id=f"ttt-cell-{pos}")
-                            board_buttons.append(button)
+                with gr.Box(elem_id="ttt-grid"):
+                    board_buttons = []
+                    for i in range(3):
+                        with gr.Row():
+                            for j in range(3):
+                                pos = i * 3 + j
+                                button = gr.Button("", elem_id=f"ttt-cell-{pos}")
+                                board_buttons.append(button)
 
                 with gr.Row():
                     ttt_reset_btn = gr.Button("New Game", variant="secondary")
