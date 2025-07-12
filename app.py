@@ -144,6 +144,15 @@ def create_interface():
             opacity: 0.8 !important;
             cursor: not-allowed !important;
         }
+        .ttt-stats {
+            text-align: center !important;
+            margin: 20px 0 !important;
+            font-size: 16px !important;
+        }
+        .ttt-stats p {
+            margin: 0 !important;
+            color: #9ca3af !important;
+        }
     """
     
     with gr.Blocks(title="SPIRAL: Interactive Reasoning Game Simulator", theme=gr.themes.Soft(), css=css) as demo:
@@ -269,8 +278,14 @@ def create_interface():
             tictactoe_env.reset()
             
             # Simplified layout focusing only on TicTacToe
-            gr.Markdown("### Play TicTacToe against AI\nYou are ❌ (X) and go first. Click on a square to make your move.")
+            with gr.Row():
+                gr.Markdown("### Play TicTacToe against AI")
+                gr.Markdown("") # spacer
+                ttt_reset_btn = gr.Button("🔄 New Game", variant="secondary", size="sm")
+            
+            gr.Markdown("You are ❌ (X) and go first. Click on a square to make your move.")
 
+            # Game board centered
             with gr.Column(elem_classes=["ttt-board"]):
                 board_buttons = []
                 for i in range(3):
@@ -280,9 +295,9 @@ def create_interface():
                             button = gr.Button("", elem_id=f"ttt-cell-{pos}", size="lg", value="")
                             board_buttons.append(button)
 
-                with gr.Row():
-                    ttt_reset_btn = gr.Button("New Game", variant="secondary")
-                    ttt_stats_display = gr.Markdown(value="Wins: 0 | Losses: 0 | Draws: 0")
+            # Stats display centered below board
+            with gr.Row():
+                ttt_stats_display = gr.Markdown(value="**Wins: 0 | Losses: 0 | Draws: 0**", elem_classes=["ttt-stats"])
 
             ttt_message = gr.Textbox(
                 label="Game Status",
