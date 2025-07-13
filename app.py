@@ -9,6 +9,7 @@ This simplified demo shows how strategic reasoning emerges from self-play in zer
 import gradio as gr
 import numpy as np
 import random
+import spaces
 
 
 class TicTacToeEnv:
@@ -110,7 +111,7 @@ def check_winner(board):
         return board[0, 0]
     
     if abs(np.fliplr(board).diagonal().sum()) == 3:
-        return board[0, 2]
+        return self.board[0, 2]
     
     return None
 
@@ -259,8 +260,15 @@ def create_interface():
 
         ttt_stats = gr.State({'wins': 0, 'losses': 0, 'draws': 0})
         
+        @spaces.GPU
         def play_tictactoe(position, stats):
-            """Play a TicTacToe move and demonstrate AI reasoning."""
+            """
+            Main game loop for TicTacToe. Handles human move, AI response, and updates state.
+            This function is decorated with @spaces.GPU to satisfy the Hugging Face Spaces
+            runtime, even though the TicTacToe logic does not require GPU acceleration.
+            The underlying issue is a mismatch between the selected GPU hardware and the
+            CPU-bound nature of the application.
+            """
             if tictactoe_env.game_over:
                 yield *update_board_buttons(), "Game is over! Click 'New Game' to start again.", "", stats
                 return
@@ -294,7 +302,7 @@ def create_interface():
                         yield *update_board_buttons(), "Game is a draw!", "", stats
                         return
                     ai_action = random.choice(valid_actions)
-
+                
                 # Generate reasoning explanation
                 reasoning = generate_reasoning(tictactoe_env.board.copy(), position, ai_action)
                 
@@ -309,7 +317,7 @@ def create_interface():
                     yield *update_board_buttons(), f"Game Over! {winner} won! AI played position {ai_action}.", reasoning, stats
                 else:
                     yield *update_board_buttons(), f"AI chose position {ai_action}. Your turn!", reasoning, stats
-                    
+            
             except Exception as e:
                 yield *update_board_buttons(), f"Error: {str(e)}", "", stats
 
@@ -318,114 +326,72 @@ def create_interface():
             tictactoe_env.reset()
             return *update_board_buttons(), "New game started! You are ❌ (X). Click a square to demonstrate strategic reasoning.", "The AI will explain its strategic decision-making process...", stats
         
-        # Initialize the board
-        tictactoe_env.reset()
-        
-        # Game interface
         with gr.Row():
-            gr.Markdown("### Strategic TicTacToe")
-            gr.Markdown("") # spacer
-            ttt_reset_btn = gr.Button("🔄 New Game", variant="secondary", size="sm")
+            with gr.Column(scale=2):
+                status_box = gr.Textbox("Welcome to SPIRAL TicTacToe! You are ❌ (X). Click a square to begin.", label="Game Status", interactive=False)
+                reasoning_box = gr.Textbox("The AI will explain its strategic moves here.", label="AI Reasoning", interactive=False, lines=4)
+                
+                with gr.Column(elem_classes=["ttt-board"]):
+                    board_buttons = []
+                    for i in range(3):
+                        with gr.Row():
+                            for j in range(3):
+                                pos = i * 3 + j
+                                btn = gr.Button("", elem_id=f"ttt-btn-{pos}")
+                                board_buttons.append(btn)
+                
+                with gr.Row():
+                    new_game_btn = gr.Button("New Game", variant="primary")
+                
+                # Hidden state for passing button clicks
+                clicked_pos = gr.Textbox(visible=False)
+
+            with gr.Column(scale=1):
+                gr.Markdown("### 📊 Game Stats")
+                stats_display = gr.Markdown("Wins: 0 | Losses: 0 | Draws: 0", elem_classes=["ttt-stats"])
+                
+                def update_stats_display(stats):
+                    return f"Wins: {stats['wins']} | Losses: {stats['losses']} | Draws: {stats['draws']}"
+                
+                gr.Markdown("""
+                ### 🤔 What is SPIRAL?
+                SPIRAL stands for **Self-Play in Reinforcement Learning**. This demo illustrates a core concept from the paper: by playing against itself millions of times, an AI can learn complex, human-like strategic reasoning without being explicitly programmed with rules like "take the center square."
+
+                The AI here uses a simple **minimax** algorithm, a classic game theory tree search method, to find the optimal move. This serves as a stand-in for the more complex neural networks used in the actual SPIRAL research.
+                """)
         
-        gr.Markdown("**You are ❌ (X)** - The AI uses minimax tree search to demonstrate strategic reasoning")
-
-        # Game board
-        with gr.Column(elem_classes=["ttt-board"]):
-            board_buttons = []
-            for i in range(3):
-                with gr.Row(elem_classes=["ttt-row"]):
-                    for j in range(3):
-                        pos = i * 3 + j
-                        button = gr.Button("", elem_id=f"ttt-cell-{pos}", size="lg", value="")
-                        board_buttons.append(button)
-
-        # Stats display
-        with gr.Row():
-            ttt_stats_display = gr.Markdown(value="**Wins: 0 | Losses: 0 | Draws: 0**", elem_classes=["ttt-stats"])
-
-        # Game status and AI reasoning
-        ttt_message = gr.Textbox(
-            label="🎯 Game Status",
-            value="Click a square to start! Watch how the AI reasons strategically.",
-            lines=2,
-            interactive=False
-        )
+        # --- Event Handlers ---
         
-        ttt_reasoning = gr.Textbox(
-            label="🧠 AI Strategic Reasoning",
-            value="The AI will explain its strategic decision-making process here, demonstrating how reasoning emerges from self-play training in zero-sum games.",
-            lines=4,
-            interactive=False
-        )
-
-        # Event handlers
         def on_board_click(pos, stats):
+            """Handler for board button clicks. Propagates to main game logic."""
             yield from play_tictactoe(pos, stats)
-
-        for i in range(9):
-            board_buttons[i].click(
-                fn=on_board_click,
-                inputs=[gr.State(i), ttt_stats],
-                outputs=[*board_buttons, ttt_message, ttt_reasoning, ttt_stats]
+        
+        # Link button clicks to the handler
+        for i, btn in enumerate(board_buttons):
+            btn.click(
+                fn=on_board_click, 
+                inputs=[gr.Textbox(str(i), visible=False), ttt_stats], 
+                outputs=[*board_buttons, status_box, reasoning_box, ttt_stats]
             )
-        
-        ttt_reset_btn.click(
-            fn=reset_tictactoe,
+
+        # Link new game button to reset function
+        new_game_btn.click(
+            fn=reset_tictactoe, 
             inputs=[ttt_stats],
-            outputs=[*board_buttons, ttt_message, ttt_reasoning, ttt_stats]
+            outputs=[*board_buttons, status_box, reasoning_box, ttt_stats]
         )
         
-        # Update stats display
+        # Update stats display when ttt_stats changes
         ttt_stats.change(
-            fn=lambda s: f"**Wins: {s['wins']} | Losses: {s['losses']} | Draws: {s['draws']}**",
+            fn=update_stats_display,
             inputs=ttt_stats,
-            outputs=ttt_stats_display
+            outputs=stats_display
         )
         
-        # Initialize board display on load
-        demo.load(
-            fn=lambda stats: (*update_board_buttons(), "Click a square to start! Watch how the AI reasons strategically.", "The AI will explain its strategic decision-making process here, demonstrating how reasoning emerges from self-play training in zero-sum games.", stats),
-            inputs=[ttt_stats],
-            outputs=[*board_buttons, ttt_message, ttt_reasoning, ttt_stats]
-        )
-        
-        # Key concepts section
-        gr.Markdown("---")
-        gr.Markdown("## 🧠 Key SPIRAL Concepts Demonstrated")
-        
-        with gr.Row():
-            with gr.Column():
-                gr.Markdown("""
-                **🎯 Strategic Reasoning**
-                - AI uses minimax tree search
-                - Evaluates all possible future moves
-                - Chooses optimal strategic actions
-                """)
-            
-            with gr.Column():
-                gr.Markdown("""
-                **🔄 Self-Play Learning**
-                - Strategic patterns emerge from competition
-                - Zero-sum games incentivize reasoning
-                - Multi-agent interactions develop intelligence
-                """)
-        
-        gr.Markdown("""
-        ### About SPIRAL
-        
-        This demo illustrates key findings from the SPIRAL research:
-        
-        - **Zero-sum games** like TicTacToe create competitive pressure that incentivizes strategic thinking
-        - **Self-play training** allows AI agents to discover optimal strategies through repeated interaction
-        - **Multi-turn reasoning** emerges naturally from the need to plan ahead in strategic environments
-        - **Tree search algorithms** like minimax demonstrate how strategic reasoning can be formalized and executed
-        
-        The AI's explanations show how it evaluates different moves, considers future possibilities, and makes strategic decisions - core capabilities that transfer to general reasoning tasks.
-        """)
-    
     return demo
 
 
 if __name__ == "__main__":
-    demo = create_interface()
-    demo.launch()
+    # Create and launch the Gradio interface
+    spiral_demo = create_interface()
+    spiral_demo.launch()
