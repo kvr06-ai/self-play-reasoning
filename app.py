@@ -187,10 +187,42 @@ def create_interface():
         game_env = gr.State(BusinessCompetitionEnv())
 
         gr.Markdown(f"# 🎮 {TITLE}")
-        gr.Markdown(
-            "**Demonstrating how complex, multi-turn strategic reasoning emerges from self-play.**\n"
-            "*This simulation replaces Tic-Tac-Toe with a business competition to better illustrate the practical takeaways from the SPIRAL paper.*"
-        )
+
+        with gr.Accordion("ℹ️ What is this app about & How to play", open=False):
+            gr.Markdown("""
+            ### What is this app about?
+
+            **For Business Strategists, Product Managers, and Students:**
+
+            This simulator is a hands-on sandbox for exploring the core trade-offs of business strategy. You are in control of a company competing against a strategic AI. By allocating your budget each quarter, you can directly see the impact of your decisions:
+
+            -   **Short-term vs. Long-term:** Feel the tension between investing in Marketing for immediate market share gains versus investing in R&D for a long-term product advantage.
+            -   **Resource Management:** Learn how investing in Sales grows your future budget, enabling more significant investments later on.
+            -   **Competitive Dynamics:** The AI opponent doesn't play a fixed strategy. It analyzes your moves and adapts, forcing you to think multiple turns ahead. This provides an intuitive feel for how competitive landscapes evolve.
+
+            **For AI/ML Engineers and Data Scientists:**
+
+            This demo provides a practical look at the principles of advanced AI reasoning described in the SPIRAL research paper. The AI opponent is not just a set of `if/else` rules; it uses a strategy model that mimics the outcomes of self-play reinforcement learning.
+
+            -   **Emergent Strategy:** The AI's decision-making process illustrates how an agent can learn to balance priorities, react to threats, and press advantages—all without being explicitly programmed for each scenario. This is a core concept of self-play.
+            -   **Multi-Turn Reasoning:** Observe the AI's rationale. It often makes decisions based on future projections (e.g., potential budget shortfalls or quality gaps), showcasing a capacity for long-term planning.
+            -   **Zero-Sum Dynamics:** The simulation is a zero-sum game for market share, creating the competitive pressure that, according to the SPIRAL paper, is essential for incentivizing robust reasoning.
+
+            ### How to Use the App
+
+            1.  **Your Goal:** Achieve a higher market share than the AI by the end of 12 quarters.
+            2.  **Choose Your Mode:** Select either "Raw Values" or "Percentages" to allocate your budget.
+            3.  **Allocate Budget:** Use the sliders to decide how much of your quarterly budget to invest in three key areas.
+                -   `R&D`: Improves your product quality, giving you a persistent, long-term edge.
+                -   `Marketing`: Provides an immediate boost to your market share for the current quarter.
+                -   `Sales`: Increases your budget for the *next* quarter, fueling future growth.
+            4.  **End the Quarter:** Click the "End Quarter" button to submit your decisions.
+            5.  **Analyze the Results:**
+                -   The charts on the left will update to show the new market landscape.
+                -   The "AI Strategic Reasoning" box will explain the logic behind the AI's counter-move.
+                -   Your budget for the next quarter will be updated.
+            6.  **Adapt and Win:** Continue making decisions for 12 quarters, adapting your strategy to counter the AI and win the market.
+            """)
         
         with gr.Row():
             with gr.Column(scale=3):
@@ -206,11 +238,19 @@ def create_interface():
                 
                 with gr.Group():
                     player_budget_display = gr.Label(f"Your Budget: ${INITIAL_BUDGET}")
-                    rd_slider = gr.Slider(0, INITIAL_BUDGET, label="R&D Investment", value=333, step=10)
-                    mkt_slider = gr.Slider(0, INITIAL_BUDGET, label="Marketing Investment", value=333, step=10)
-                    sales_slider = gr.Slider(0, INITIAL_BUDGET, label="Sales Investment", value=334, step=10)
-                
-                total_allocated_display = gr.Label("Total Allocated: $1000")
+                    allocation_mode_radio = gr.Radio(["Raw Values", "Percentages"], label="Allocation Mode", value="Raw Values")
+
+                    with gr.Group() as raw_values_group:
+                        rd_slider_raw = gr.Slider(0, INITIAL_BUDGET, label="R&D Investment", value=333, step=10)
+                        mkt_slider_raw = gr.Slider(0, INITIAL_BUDGET, label="Marketing Investment", value=333, step=10)
+                        sales_slider_raw = gr.Slider(0, INITIAL_BUDGET, label="Sales Investment", value=334, step=10)
+                        total_allocated_raw_display = gr.Label("Total Allocated: $1000")
+
+                    with gr.Group(visible=False) as percentage_group:
+                        rd_slider_pct = gr.Slider(0, 100, label="R&D Allocation (%)", value=33, step=1)
+                        mkt_slider_pct = gr.Slider(0, 100, label="Marketing Allocation (%)", value=33, step=1)
+                        sales_slider_pct = gr.Slider(0, 100, label="Sales Allocation (%)", value=34, step=1)
+                        total_allocated_pct_display = gr.Label("Total Allocated: 100%")
 
                 with gr.Row():
                     submit_btn = gr.Button("End Quarter", variant="primary")
@@ -236,14 +276,37 @@ def create_interface():
             return fig_ms, fig_b, fig_q
 
         @spaces.GPU
-        def game_step_and_update(env, rd, mkt, sales):
+        def game_step_and_update(env, mode, rd_raw, mkt_raw, sales_raw, rd_pct, mkt_pct, sales_pct):
             player_budget = env.player_stats["budget"]
-            if (rd + mkt + sales) > player_budget:
-                status_text = f"Error: Allocation (${rd + mkt + sales}) exceeds budget (${player_budget})."
-                return env, status_text, env.ai_stats, *create_plots(env.history), gr.Label(f"Your Budget: ${player_budget}"), gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget)
+            
+            if mode == "Percentages":
+                if rd_pct + mkt_pct + sales_pct != 100:
+                    status_text = "Error: Percentage allocations must sum to 100%."
+                    return env, status_text, env.ai_stats.get("last_reasoning", ""), *create_plots(env.history), gr.Label(f"Your Budget: ${player_budget}"), rd_slider_raw, mkt_slider_raw, sales_slider_raw, rd_slider_pct, mkt_slider_pct, sales_slider_pct
+                
+                rd_alloc_val = int(player_budget * rd_pct / 100)
+                mkt_alloc_val = int(player_budget * mkt_pct / 100)
+                sales_alloc_val = int(player_budget * sales_pct / 100)
+                
+                # Distribute rounding errors
+                total = rd_alloc_val + mkt_alloc_val + sales_alloc_val
+                sales_alloc_val += player_budget - total
+                
+            else: # Raw Values
+                rd_alloc_val, mkt_alloc_val, sales_alloc_val = rd_raw, mkt_raw, sales_raw
 
-            player_alloc = {"rd": rd, "marketing": mkt, "sales": sales}
+            if (rd_alloc_val + mkt_alloc_val + sales_alloc_val) > player_budget:
+                status_text = f"Error: Allocation (${rd_alloc_val + mkt_alloc_val + sales_alloc_val}) exceeds budget (${player_budget})."
+                # This part needs to return updates for all sliders to avoid errors
+                return (env, status_text, env.ai_stats.get("last_reasoning", ""), *create_plots(env.history), 
+                        gr.Label(f"Your Budget: ${player_budget}"),
+                        gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget),
+                        rd_slider_pct, mkt_slider_pct, sales_slider_pct)
+
+
+            player_alloc = {"rd": rd_alloc_val, "marketing": mkt_alloc_val, "sales": sales_alloc_val}
             ai_alloc, ai_reasoning = ai_strategy(env.ai_stats, env.player_stats)
+            env.ai_stats["last_reasoning"] = ai_reasoning # Store reasoning for error case
             
             env.step(player_alloc, ai_alloc)
             state = env.get_state()
@@ -259,11 +322,14 @@ def create_interface():
 
             new_budget = state["player_stats"]["budget"]
             
+            # Return updates for all sliders
             return (state, status_text, ai_reasoning, *plots, 
                     gr.Label(f"Your Budget: ${new_budget}"), 
                     gr.Slider(maximum=new_budget, value=int(new_budget/3)), 
                     gr.Slider(maximum=new_budget, value=int(new_budget/3)), 
-                    gr.Slider(maximum=new_budget, value=new_budget - 2 * int(new_budget/3)))
+                    gr.Slider(maximum=new_budget, value=new_budget - 2 * int(new_budget/3)),
+                    gr.Slider(value=33), gr.Slider(value=33), gr.Slider(value=34)
+                   )
 
         def on_new_game():
             env = BusinessCompetitionEnv()
@@ -275,20 +341,29 @@ def create_interface():
                 gr.Slider(maximum=INITIAL_BUDGET, value=333), 
                 gr.Slider(maximum=INITIAL_BUDGET, value=333), 
                 gr.Slider(maximum=INITIAL_BUDGET, value=334),
+                gr.Slider(value=33), gr.Slider(value=33), gr.Slider(value=34),
                 gr.Button(interactive=True)
             )
             
-        def update_total_display(rd, mkt, sales):
+        def update_total_raw_display(rd, mkt, sales):
             return gr.Label(f"Total Allocated: ${rd + mkt + sales}")
         
+        def update_total_pct_display(rd, mkt, sales):
+            return gr.Label(f"Total Allocated: {rd + mkt + sales}%")
+
+        def toggle_allocation_mode(mode):
+            return gr.update(visible=mode == "Raw Values"), gr.update(visible=mode == "Percentages")
+
         # --- Event Handlers ---
         submit_btn.click(
             fn=game_step_and_update,
-            inputs=[game_env, rd_slider, mkt_slider, sales_slider],
+            inputs=[game_env, allocation_mode_radio, rd_slider_raw, mkt_slider_raw, sales_slider_raw, rd_slider_pct, mkt_slider_pct, sales_slider_pct],
             outputs=[
                 game_env, status_box, ai_reasoning_box, 
                 plot_market_share, plot_budget, plot_quality,
-                player_budget_display, rd_slider, mkt_slider, sales_slider
+                player_budget_display, 
+                rd_slider_raw, mkt_slider_raw, sales_slider_raw,
+                rd_slider_pct, mkt_slider_pct, sales_slider_pct
             ]
         )
         
@@ -298,15 +373,28 @@ def create_interface():
             outputs=[
                 game_env, status_box, ai_reasoning_box, 
                 plot_market_share, plot_budget, plot_quality,
-                player_budget_display, rd_slider, mkt_slider, sales_slider,
+                player_budget_display, 
+                rd_slider_raw, mkt_slider_raw, sales_slider_raw,
+                rd_slider_pct, mkt_slider_pct, sales_slider_pct,
                 submit_btn
             ]
         )
         
-        for slider in [rd_slider, mkt_slider, sales_slider]:
-            slider.change(fn=update_total_display, inputs=[rd_slider, mkt_slider, sales_slider], outputs=total_allocated_display)
+        # Handlers for updating total displays
+        for slider in [rd_slider_raw, mkt_slider_raw, sales_slider_raw]:
+            slider.change(fn=update_total_raw_display, inputs=[rd_slider_raw, mkt_slider_raw, sales_slider_raw], outputs=total_allocated_raw_display)
+        
+        for slider in [rd_slider_pct, mkt_slider_pct, sales_slider_pct]:
+            slider.change(fn=update_total_pct_display, inputs=[rd_slider_pct, mkt_slider_pct, sales_slider_pct], outputs=total_allocated_pct_display)
 
-        demo.load(on_new_game, outputs=[game_env, status_box, ai_reasoning_box, plot_market_share, plot_budget, plot_quality, player_budget_display, rd_slider, mkt_slider, sales_slider, submit_btn])
+        # Handler for toggling allocation modes
+        allocation_mode_radio.change(
+            fn=toggle_allocation_mode,
+            inputs=allocation_mode_radio,
+            outputs=[raw_values_group, percentage_group]
+        )
+
+        demo.load(on_new_game, outputs=[game_env, status_box, ai_reasoning_box, plot_market_share, plot_budget, plot_quality, player_budget_display, rd_slider_raw, mkt_slider_raw, sales_slider_raw, rd_slider_pct, mkt_slider_pct, sales_slider_pct, submit_btn])
 
     return demo
 
