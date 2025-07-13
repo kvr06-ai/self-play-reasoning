@@ -111,7 +111,7 @@ def check_winner(board):
         return board[0, 0]
     
     if abs(np.fliplr(board).diagonal().sum()) == 3:
-        return self.board[0, 2]
+        return board[0, 2]
     
     return None
 
