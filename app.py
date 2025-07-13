@@ -364,7 +364,7 @@ def create_interface():
             new_budget = state["player_stats"]["budget"]
             
             return (
-                state, status_text, ai_reasoning, *plots, 
+                env, status_text, ai_reasoning, *plots, 
                 gr.update(value=f"Your Budget: ${new_budget}"), 
                 gr.update(maximum=new_budget, value=int(new_budget/3)), 
                 gr.update(maximum=new_budget, value=int(new_budget/3)), 
