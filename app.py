@@ -12,6 +12,7 @@ import gradio as gr
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import spaces
 
 # --- Game Configuration ---
 INITIAL_BUDGET = 1000
@@ -234,6 +235,7 @@ def create_interface():
 
             return fig_ms, fig_b, fig_q
 
+        @spaces.GPU
         def game_step_and_update(env, rd, mkt, sales):
             player_budget = env.player_stats["budget"]
             if (rd + mkt + sales) > player_budget:
