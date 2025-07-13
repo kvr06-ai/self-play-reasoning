@@ -278,17 +278,25 @@ def create_interface():
         @spaces.GPU
         def game_step_and_update(env, mode, rd_raw, mkt_raw, sales_raw, rd_pct, mkt_pct, sales_pct):
             player_budget = env.player_stats["budget"]
-            
+
+            # Helper to create a return tuple for user input errors
+            def create_error_return(status_text):
+                return (
+                    env, status_text, env.ai_stats.get("last_reasoning", ""), *create_plots(env.history),
+                    gr.update(value=f"Your Budget: ${player_budget}"),
+                    gr.update(), gr.update(), gr.update(), # Raw sliders
+                    gr.update(), gr.update(), gr.update(), # Pct sliders
+                    gr.update(interactive=True) # Submit button
+                )
+
             if mode == "Percentages":
                 if rd_pct + mkt_pct + sales_pct != 100:
-                    status_text = "Error: Percentage allocations must sum to 100%."
-                    return env, status_text, env.ai_stats.get("last_reasoning", ""), *create_plots(env.history), gr.Label(f"Your Budget: ${player_budget}"), rd_slider_raw, mkt_slider_raw, sales_slider_raw, rd_slider_pct, mkt_slider_pct, sales_slider_pct
+                    return create_error_return("Error: Percentage allocations must sum to 100%.")
                 
                 rd_alloc_val = int(player_budget * rd_pct / 100)
                 mkt_alloc_val = int(player_budget * mkt_pct / 100)
                 sales_alloc_val = int(player_budget * sales_pct / 100)
                 
-                # Distribute rounding errors
                 total = rd_alloc_val + mkt_alloc_val + sales_alloc_val
                 sales_alloc_val += player_budget - total
                 
@@ -296,40 +304,36 @@ def create_interface():
                 rd_alloc_val, mkt_alloc_val, sales_alloc_val = rd_raw, mkt_raw, sales_raw
 
             if (rd_alloc_val + mkt_alloc_val + sales_alloc_val) > player_budget:
-                status_text = f"Error: Allocation (${rd_alloc_val + mkt_alloc_val + sales_alloc_val}) exceeds budget (${player_budget})."
-                # This part needs to return updates for all sliders to avoid errors
-                return (env, status_text, env.ai_stats.get("last_reasoning", ""), *create_plots(env.history), 
-                        gr.Label(f"Your Budget: ${player_budget}"),
-                        gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget),
-                        rd_slider_pct, mkt_slider_pct, sales_slider_pct)
-
+                return create_error_return(f"Error: Allocation (${rd_alloc_val + mkt_alloc_val + sales_alloc_val}) exceeds budget (${player_budget}).")
 
             player_alloc = {"rd": rd_alloc_val, "marketing": mkt_alloc_val, "sales": sales_alloc_val}
             ai_alloc, ai_reasoning = ai_strategy(env.ai_stats, env.player_stats)
-            env.ai_stats["last_reasoning"] = ai_reasoning # Store reasoning for error case
+            env.ai_stats["last_reasoning"] = ai_reasoning
             
             env.step(player_alloc, ai_alloc)
             state = env.get_state()
             
             plots = create_plots(state["history"])
 
+            submit_btn_update = gr.update(interactive=True)
             if state["game_over"]:
                 winner = env.get_winner()
                 status_text = f"Game Over! Winner: {winner}. Final market share: You ({state['player_stats']['market_share']:.1f}%) vs AI ({state['ai_stats']['market_share']:.1f}%)."
-                submit_btn.interactive = False
+                submit_btn_update = gr.update(interactive=False)
             else:
                 status_text = f"End of Quarter {state['quarter']}. Your turn."
 
             new_budget = state["player_stats"]["budget"]
             
-            # Return updates for all sliders
-            return (state, status_text, ai_reasoning, *plots, 
-                    gr.Label(f"Your Budget: ${new_budget}"), 
-                    gr.Slider(maximum=new_budget, value=int(new_budget/3)), 
-                    gr.Slider(maximum=new_budget, value=int(new_budget/3)), 
-                    gr.Slider(maximum=new_budget, value=new_budget - 2 * int(new_budget/3)),
-                    gr.Slider(value=33), gr.Slider(value=33), gr.Slider(value=34)
-                   )
+            return (
+                state, status_text, ai_reasoning, *plots, 
+                gr.update(value=f"Your Budget: ${new_budget}"), 
+                gr.update(maximum=new_budget, value=int(new_budget/3)), 
+                gr.update(maximum=new_budget, value=int(new_budget/3)), 
+                gr.update(maximum=new_budget, value=new_budget - 2 * int(new_budget/3)),
+                gr.update(value=33), gr.update(value=33), gr.update(value=34),
+                submit_btn_update
+            )
 
         def on_new_game():
             env = BusinessCompetitionEnv()
@@ -337,12 +341,12 @@ def create_interface():
             plots = create_plots(state["history"])
             return (
                 env, f"Quarter 1 of {NUM_QUARTERS}. Your move.", "", *plots, 
-                gr.Label(f"Your Budget: ${INITIAL_BUDGET}"), 
-                gr.Slider(maximum=INITIAL_BUDGET, value=333), 
-                gr.Slider(maximum=INITIAL_BUDGET, value=333), 
-                gr.Slider(maximum=INITIAL_BUDGET, value=334),
-                gr.Slider(value=33), gr.Slider(value=33), gr.Slider(value=34),
-                gr.Button(interactive=True)
+                gr.update(value=f"Your Budget: ${INITIAL_BUDGET}"), 
+                gr.update(maximum=INITIAL_BUDGET, value=333), 
+                gr.update(maximum=INITIAL_BUDGET, value=333), 
+                gr.update(maximum=INITIAL_BUDGET, value=334),
+                gr.update(value=33), gr.update(value=33), gr.update(value=34),
+                gr.update(interactive=True)
             )
             
         def update_total_raw_display(rd, mkt, sales):
@@ -363,7 +367,8 @@ def create_interface():
                 plot_market_share, plot_budget, plot_quality,
                 player_budget_display, 
                 rd_slider_raw, mkt_slider_raw, sales_slider_raw,
-                rd_slider_pct, mkt_slider_pct, sales_slider_pct
+                rd_slider_pct, mkt_slider_pct, sales_slider_pct,
+                submit_btn
             ]
         )
         
