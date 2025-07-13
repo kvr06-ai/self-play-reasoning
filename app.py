@@ -209,6 +209,55 @@ def ai_strategy(ai_stats, player_stats, quarter):
 
     return final_allocation, " ".join(reasoning)
 
+# --- Post-Game Analysis ---
+
+def generate_post_game_analysis(history, winner):
+    """Generates dynamic feedback based on game results."""
+    initial_state = history[0]
+    final_state = history[-1]
+
+    # Calculate key performance indicators
+    quality_change_player = final_state['Player Product Quality'] - initial_state['Player Product Quality']
+    quality_change_ai = final_state['AI Product Quality'] - initial_state['AI Product Quality']
+    
+    budget_change_player = final_state['Player Budget'] - initial_state['Player Budget']
+    budget_change_ai = final_state['AI Budget'] - initial_state['AI Budget']
+    
+    market_share_lead_player_final = final_state['Player Market Share'] - final_state['AI Market Share']
+    
+    mid_game_state = history[len(history) // 2]
+    market_share_lead_player_mid = mid_game_state['Player Market Share'] - mid_game_state['AI Market Share']
+
+    feedback = []
+
+    if winner == "You":
+        feedback.append("🏆 **Congratulations on your victory!** Here's what led to your success:")
+        if quality_change_player > quality_change_ai * 1.2 and quality_change_player > 20:
+            feedback.append("• **Innovation Leadership:** Your strong and consistent investment in R&D created a superior product that was difficult for the AI to overcome.")
+        if budget_change_player > budget_change_ai * 1.2 and budget_change_player > 200:
+            feedback.append("• **Financial Acumen:** You expertly grew your budget, giving you the resources to outmaneuver the AI in the final quarters.")
+        if market_share_lead_player_mid < 0 and market_share_lead_player_final > 0:
+            feedback.append("• **Strategic Comeback:** Your impressive turnaround in the second half of the game shows excellent adaptation and resilience.")
+        if not feedback[1:]: # If no specific points were added
+            feedback.append("• **Balanced Strategy:** Your well-rounded approach of investing across R&D, Marketing, and Sales proved to be a winning formula.")
+
+    elif winner == "AI":
+        feedback.append("📈 **A hard-fought game!** The AI is a tough opponent. Here's a quick analysis for next time:")
+        if quality_change_ai > quality_change_player * 1.2 and quality_change_ai > 20:
+            feedback.append("• **Innovation Gap:** The AI secured a significant product quality advantage. Consider allocating more to R&D earlier on to build a competitive moat.")
+        if budget_change_ai > budget_change_player * 1.2 and budget_change_ai > 200:
+            feedback.append("• **Budget Disadvantage:** The AI grew its budget more effectively. Prioritizing Sales earlier could provide you with more financial power in later stages.")
+        if abs(market_share_lead_player_final) < 10:
+             feedback.append(f"• **Narrow Margin:** You lost by only {abs(market_share_lead_player_final):.1f}%! A small, targeted marketing push might have been enough to change the outcome.")
+        if not feedback[1:]:
+            feedback.append("• **Countering a Balanced Foe:** The AI succeeded with a balanced approach. Experimenting with a more aggressive, focused strategy could help you find and exploit a weakness.")
+
+    else: # Draw
+        feedback.append("🤝 **An incredibly close match, ending in a draw!**")
+        feedback.append("• **Strategic Stalemate:** Both you and the AI demonstrated strong, well-balanced strategies, with neither able to gain a decisive, lasting advantage.")
+
+    return "\n".join(feedback)
+
 # --- Gradio UI ---
 
 def create_interface():
@@ -363,13 +412,8 @@ def create_interface():
                 winner = env.get_winner()
                 status_text = f"Game Over! Winner: {winner}. Final market share: You ({state['player_stats']['market_share']:.1f}%) vs AI ({state['ai_stats']['market_share']:.1f}%)."
                 submit_btn_update = gr.update(interactive=False)
-                # Deeper post-game analysis: Analyze trends from history
-                df = pd.DataFrame(state["history"])
-                player_rd_trend = df["Player Product Quality"].diff().mean()  # Avg quality growth per quarter
-                player_ms_trend = df["Player Market Share"].diff().mean()  # Avg market share change
-                player_budget_trend = df["Player Budget"].diff().mean()  # Avg budget change
-                quality_gap = state["player_stats"]["product_quality"] - state["ai_stats"]["product_quality"]
-                analysis_text = f"Post-Game Analysis:\n- Your average quality growth: {player_rd_trend:.1f} per quarter (vs. AI's {df['AI Product Quality'].diff().mean():.1f}). Quality gap: {quality_gap}.\n- Market share trend: {player_ms_trend:.1f}% change per quarter.\n- Budget trend: ${player_budget_trend:.0f} change per quarter.\nInsight: {'Strong long-term product focus paid off in sustained growth.' if quality_gap > 0 and player_ms_trend > 0 else 'Short-term tactics worked initially but quality neglect hurt in the end.' if player_ms_trend < 0 else 'Balanced approach led to steady performance.'}\nRemember: In real markets, superior products often dominate over time through word-of-mouth and premium pricing."
+                # Generate post-game analysis
+                analysis_text = generate_post_game_analysis(state["history"], winner)
             else:
                 status_text = f"End of Quarter {state['quarter']}. Your turn."
 
