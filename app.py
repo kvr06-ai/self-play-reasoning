@@ -13,7 +13,6 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import spaces
-import json
 
 # --- Game Configuration ---
 INITIAL_BUDGET = 1000
@@ -91,17 +90,19 @@ class BusinessCompetitionEnv:
 
         self.quarter += 1
 
-        # 1. Update Product Quality from R&D investment
+        # 1. Update Product Quality from R&D investment (with diminishing returns)
         self.player_stats["product_quality"] += int(np.sqrt(player_allocation["rd"]) * 1.5)
         self.ai_stats["product_quality"] += int(np.sqrt(ai_allocation["rd"]) * 1.5)
 
         # 2. Calculate market share shift from Marketing and Quality
+        # Enhanced: Quality impact grows over time (long-term advantage), with increasing weight
         mkt_diff = player_allocation["marketing"] - ai_allocation["marketing"]
         quality_diff = self.player_stats["product_quality"] - self.ai_stats["product_quality"]
-        
-        # Marketing has a direct but temporary effect, quality has a persistent effect
-        market_share_shift = (mkt_diff / 100.0) + (quality_diff / 50.0)
-        market_share_shift = np.clip(market_share_shift, -7, 7) # Cap shifts per quarter
+        quality_weight = 1 + (self.quarter / NUM_QUARTERS) * 1.5  # Increases from 1 to ~2.5 over 12 quarters
+        market_share_shift = (mkt_diff / 100.0) + (quality_diff / 50.0) * quality_weight
+        # Clip relaxed in later quarters to allow bigger swings for quality dominance
+        clip_max = 7 + (self.quarter / NUM_QUARTERS) * 5  # Up to ~12 by end
+        market_share_shift = np.clip(market_share_shift, -clip_max, clip_max)
 
         self.player_stats["market_share"] += market_share_shift
         self.ai_stats["market_share"] -= market_share_shift
@@ -109,18 +110,23 @@ class BusinessCompetitionEnv:
         self.ai_stats["market_share"] = 100 - self.player_stats["market_share"]
 
         # 3. Calculate next quarter's budget from Sales investment and market share
+        # Enhanced: ROI now exponentially rewards quality (premium pricing for better products)
         player_remaining_budget = self.player_stats['budget'] - sum(player_allocation.values())
         ai_remaining_budget = self.ai_stats['budget'] - sum(ai_allocation.values())
 
-        player_sales_roi = 1.2 + (self.player_stats["market_share"] / 200.0)
-        ai_sales_roi = 1.2 + (self.ai_stats["market_share"] / 200.0)
+        # Exponential quality bonus: (quality / 100) ** 1.5 for non-linear growth
+        player_quality_bonus = (self.player_stats["product_quality"] / 100) ** 1.5
+        ai_quality_bonus = (self.ai_stats["product_quality"] / 100) ** 1.5
+
+        player_sales_roi = 1.2 + (self.player_stats["market_share"] / 200.0) + player_quality_bonus * 0.5
+        ai_sales_roi = 1.2 + (self.ai_stats["market_share"] / 200.0) + ai_quality_bonus * 0.5
         
         self.player_stats["budget"] = int(player_allocation["sales"] * player_sales_roi + player_remaining_budget)
         self.ai_stats["budget"] = int(ai_allocation["sales"] * ai_sales_roi + ai_remaining_budget)
 
-        # Error Handling: Clamp budgets to >=0
-        self.player_stats["budget"] = max(0, self.player_stats["budget"])
-        self.ai_stats["budget"] = max(0, self.ai_stats["budget"])
+        # Error Handling: Clamp budgets to >=0; if 0, add small recovery to prevent instant loss (realism: minimal operations continue)
+        self.player_stats["budget"] = max(50, self.player_stats["budget"]) if self.player_stats["budget"] == 0 else max(0, self.player_stats["budget"])
+        self.ai_stats["budget"] = max(50, self.ai_stats["budget"]) if self.ai_stats["budget"] == 0 else max(0, self.ai_stats["budget"])
 
         if self.quarter >= NUM_QUARTERS:
             self.game_over = True
@@ -150,8 +156,15 @@ def ai_strategy(ai_stats, player_stats, quarter):
     quality_advantage_threshold = 20 - (quarter // 3)
     budget_threshold = 0.8 + (quarter / 100.0)  # Slightly increases to make AI more conservative later
 
+    # Enhanced: AI reacts more aggressively to widening quality gaps in later quarters
+    if quarter > 6 and ai_stats["product_quality"] < player_stats["product_quality"] - (quality_gap_threshold * 1.2):
+        allocation["rd"] += 0.25
+        allocation["marketing"] -= 0.125
+        allocation["sales"] -= 0.125
+        reasoning.append(f"Quarter {quarter}: Late-game quality deficit detected—ramping up R&D aggressively to catch up before it's too late.")
+
     # 1. React to quality gap (long-term planning)
-    if ai_stats["product_quality"] < player_stats["product_quality"] - quality_gap_threshold:
+    elif ai_stats["product_quality"] < player_stats["product_quality"] - quality_gap_threshold:
         allocation["rd"] += 0.2
         allocation["marketing"] -= 0.1
         allocation["sales"] -= 0.1
@@ -220,7 +233,7 @@ def create_interface():
 
             **For AI/ML Engineers and Data Scientists:**
 
-            This demo provides a practical look at the principles of advanced AI reasoning described in the SPIRAL research paper. The AI opponent is not just a set of `if/else` rules; it uses a strategy model that mimics the outcomes of self-play reinforcement learning.
+            This demo provides a practical look at the principles of advanced AI reasoning described in the SPIRAL research paper. The AI opponent uses a heuristic-based strategy model designed to mimic the emergent behaviors and outcomes of self-play reinforcement learning—such as adaptive planning and threat response—without full RL training.
 
             -   **Emergent Strategy:** The AI's decision-making process illustrates how an agent can learn to balance priorities, react to threats, and press advantages—all without being explicitly programmed for each scenario. This is a core concept of self-play.
             -   **Multi-Turn Reasoning:** Observe the AI's rationale. It often makes decisions based on future projections (e.g., potential budget shortfalls or quality gaps), showcasing a capacity for long-term planning.
@@ -280,17 +293,12 @@ def create_interface():
                 with gr.Row():
                     submit_btn = gr.Button("End Quarter", variant="primary")
                     new_game_btn = gr.Button("Start New Game")
-                    ai_vs_ai_btn = gr.Button("Simulate AI vs AI")
-
-                with gr.Row():
-                    save_btn = gr.Button("Save Game")
-                    load_file = gr.File(label="Load Game JSON")
 
                 gr.Markdown("### 🧠 AI Strategic Reasoning")
                 ai_reasoning_box = gr.Textbox("", label="AI Decision Rationale", lines=5, interactive=False)
 
                 gr.Markdown("### 📝 Post-Game Analysis")
-                analysis_box = gr.Textbox("", label="Strategy Insights", lines=3, interactive=False)
+                analysis_box = gr.Textbox("", label="Strategy Insights", lines=5, interactive=False)
         
         def create_plots(history):
             df = pd.DataFrame(history)
@@ -355,11 +363,13 @@ def create_interface():
                 winner = env.get_winner()
                 status_text = f"Game Over! Winner: {winner}. Final market share: You ({state['player_stats']['market_share']:.1f}%) vs AI ({state['ai_stats']['market_share']:.1f}%)."
                 submit_btn_update = gr.update(interactive=False)
-                # Post-game analysis
-                final_history = state["history"][-1]
-                rd_invest = final_history["Player Product Quality"] - INITIAL_PRODUCT_QUALITY
-                sales_focus = final_history["Player Budget"] > INITIAL_BUDGET
-                analysis_text = f"Post-Game Analysis: Your strategy showed synergy by balancing skills—e.g., high R&D (quality gain: {rd_invest}) with Sales (budget growth: {sales_focus}) led to transferable reasoning advantages."
+                # Deeper post-game analysis: Analyze trends from history
+                df = pd.DataFrame(state["history"])
+                player_rd_trend = df["Player Product Quality"].diff().mean()  # Avg quality growth per quarter
+                player_ms_trend = df["Player Market Share"].diff().mean()  # Avg market share change
+                player_budget_trend = df["Player Budget"].diff().mean()  # Avg budget change
+                quality_gap = state["player_stats"]["product_quality"] - state["ai_stats"]["product_quality"]
+                analysis_text = f"Post-Game Analysis:\n- Your average quality growth: {player_rd_trend:.1f} per quarter (vs. AI's {df['AI Product Quality'].diff().mean():.1f}). Quality gap: {quality_gap}.\n- Market share trend: {player_ms_trend:.1f}% change per quarter.\n- Budget trend: ${player_budget_trend:.0f} change per quarter.\nInsight: {'Strong long-term product focus paid off in sustained growth.' if quality_gap > 0 and player_ms_trend > 0 else 'Short-term tactics worked initially but quality neglect hurt in the end.' if player_ms_trend < 0 else 'Balanced approach led to steady performance.'}\nRemember: In real markets, superior products often dominate over time through word-of-mouth and premium pricing."
             else:
                 status_text = f"End of Quarter {state['quarter']}. Your turn."
 
@@ -403,46 +413,6 @@ def create_interface():
         def adjust_pct_sliders(rd, mkt):
             return gr.update(value=100 - rd - mkt)
 
-        def simulate_ai_vs_ai():
-            env = BusinessCompetitionEnv()
-            all_reasoning = []
-            for q in range(1, NUM_QUARTERS + 1):
-                player_alloc, player_reasoning = ai_strategy(env.player_stats, env.ai_stats, q)  # Player as AI copy
-                ai_alloc, ai_reasoning = ai_strategy(env.ai_stats, env.player_stats, q)
-                env.step(player_alloc, ai_alloc)
-                all_reasoning.append(f"Quarter {q}: AI1 Reasoning: {player_reasoning} | AI2 Reasoning: {ai_reasoning}")
-            state = env.get_state()
-            winner = env.get_winner()
-            plots = create_plots(state["history"])
-            analysis_text = f"AI vs AI Simulation: Synergy in self-play led to balanced strategies. Winner: {winner}."
-            return "\n\n".join(all_reasoning), *plots, f"AI vs AI Simulation Complete! Winner: {winner}", analysis_text
-
-        def save_game(env):
-            return json.dumps(env.get_state()["history"])
-
-        def load_game(file):
-            if file is None:
-                return None, "No file uploaded."
-            with open(file.name, "r") as f:
-                history = json.load(f)
-            env = BusinessCompetitionEnv()
-            env.history = history
-            env.quarter = history[-1]["Quarter"]
-            env.player_stats = {
-                "budget": history[-1]["Player Budget"],
-                "market_share": history[-1]["Player Market Share"],
-                "product_quality": history[-1]["Player Product Quality"],
-            }
-            env.ai_stats = {
-                "budget": history[-1]["AI Budget"],
-                "market_share": history[-1]["AI Market Share"],
-                "product_quality": history[-1]["AI Product Quality"],
-            }
-            env.game_over = env.quarter >= NUM_QUARTERS
-            plots = create_plots(env.history)
-            status = f"Loaded game at Quarter {env.quarter}. Your move." if not env.game_over else "Loaded completed game."
-            return env, status, "", *plots, gr.update(value=f"Your Budget: ${env.player_stats['budget']}"), *([gr.update()] * 6), gr.update(interactive=not env.game_over), ""
-
         # --- Event Handlers ---
         submit_btn.click(
             fn=game_step_and_update,
@@ -461,32 +431,6 @@ def create_interface():
         new_game_btn.click(
             fn=on_new_game,
             inputs=[],
-            outputs=[
-                game_env, status_box, ai_reasoning_box, 
-                plot_market_share, plot_budget, plot_quality,
-                player_budget_display, 
-                rd_slider_raw, mkt_slider_raw, sales_slider_raw,
-                rd_slider_pct, mkt_slider_pct, sales_slider_pct,
-                submit_btn,
-                analysis_box
-            ]
-        )
-        
-        ai_vs_ai_btn.click(
-            fn=simulate_ai_vs_ai,
-            inputs=[],
-            outputs=[ai_reasoning_box, plot_market_share, plot_budget, plot_quality, status_box, analysis_box]
-        )
-
-        save_btn.click(
-            fn=save_game,
-            inputs=game_env,
-            outputs=gr.File(label="Download Game JSON")
-        )
-
-        load_file.change(
-            fn=load_game,
-            inputs=load_file,
             outputs=[
                 game_env, status_box, ai_reasoning_box, 
                 plot_market_share, plot_budget, plot_quality,
