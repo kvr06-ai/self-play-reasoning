@@ -226,6 +226,8 @@ def create_interface():
             -   **Multi-Turn Reasoning:** Observe the AI's rationale. It often makes decisions based on future projections (e.g., potential budget shortfalls or quality gaps), showcasing a capacity for long-term planning.
             -   **Zero-Sum Dynamics:** The simulation is a zero-sum game for market share, creating the competitive pressure that, according to the SPIRAL paper, is essential for incentivizing robust reasoning.
 
+            This demo is inspired by the SPIRAL framework from the research paper: [SPIRAL: Self-Play on Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning](https://arxiv.org/abs/2506.24119).
+
             ### Key Links to SPIRAL Paper Takeaways
             - **Transferable Reasoning:** Your R&D investments build long-term planning skills, transferable to real-world logic problems (Takeaway 2).
             - **Diverse Skills:** Marketing encourages probabilistic thinking (like Poker), while Sales focuses on resource foresight (Takeaway 4).
@@ -238,7 +240,7 @@ def create_interface():
             3.  **Allocate Budget:** Use the sliders to decide how much of your quarterly budget to invest in three key areas.
                 -   `R&D`: Improves your product quality, giving you a persistent, long-term edge.
                 -   `Marketing`: Provides an immediate boost to your market share for the current quarter.
-                -   `Sales`: Increases your budget for the *next* quarter, fueling future growth.
+                -   `Sales`: Increases your budget for the *next* quarter, fueling future growth. (Hint: Your coffers may flourish like a well-tended garden or wither like neglected vines, depending on how you nurture sales and market dominance—choose wisely to unlock the mysteries of compounding fortune!)
             4.  **End the Quarter:** Click the "End Quarter" button to submit your decisions.
             5.  **Analyze the Results:**
                 -   The charts on the left will update to show the new market landscape.
