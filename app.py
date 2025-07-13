@@ -1,397 +1,318 @@
 """
-SPIRAL: Interactive Reasoning Game Simulator
+SPIRAL: Strategic Business Competition Simulator
 
-Demonstrates key concepts from "Self-Play in Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning"
+This demo has been updated to more intuitively demonstrate the key concepts from the 
+"Self-Play in Zero-Sum Games Incentivizes Reasoning" (SPIRAL) research paper.
 
-This simplified demo shows how strategic reasoning emerges from self-play in zero-sum games like TicTacToe.
+Instead of Tic-Tac-Toe, this simulation uses a zero-sum business competition to showcase
+complex, multi-turn strategic reasoning in a more practical and relatable context.
 """
 
 import gradio as gr
 import numpy as np
-import random
-import spaces
+import pandas as pd
+import plotly.express as px
 
+# --- Game Configuration ---
+INITIAL_BUDGET = 1000
+INITIAL_MARKET_SHARE = 50
+INITIAL_PRODUCT_QUALITY = 50
+NUM_QUARTERS = 12
+TITLE = "SPIRAL: Strategic Business Competition"
 
-class TicTacToeEnv:
-    """Simple TicTacToe environment for SPIRAL demonstration."""
-    
+# --- Game Environment ---
+
+class BusinessCompetitionEnv:
+    """Manages the state of the strategic business competition."""
     def __init__(self):
         self.reset()
-    
+
     def reset(self):
-        """Reset the game to initial state."""
-        self.board = np.zeros((3, 3), dtype=np.int8)
-        self.current_player = 1  # Player 1 starts (X)
+        """Resets the game to its initial state."""
+        self.quarter = 0
         self.game_over = False
-        self.winner = None
-        self.move_count = 0
-        return self.board.copy()
-    
-    def step(self, action):
-        """Execute one step in the environment."""
-        if self.game_over:
-            return self.board.copy(), 0, True, {}
         
-        # Convert action to row, col
-        row, col = divmod(action, 3)
+        self.player_stats = {
+            "budget": INITIAL_BUDGET,
+            "market_share": INITIAL_MARKET_SHARE,
+            "product_quality": INITIAL_PRODUCT_QUALITY,
+        }
+        self.ai_stats = {
+            "budget": INITIAL_BUDGET,
+            "market_share": INITIAL_MARKET_SHARE,
+            "product_quality": INITIAL_PRODUCT_QUALITY,
+        }
         
-        # Check if move is valid
-        if self.board[row, col] != 0:
-            return self.board.copy(), -1, True, {"invalid_move": True}
+        # History stores the state at the *end* of each quarter
+        self.history = []
+        self._add_to_history() # Initial state at quarter 0
         
-        # Make the move
-        self.board[row, col] = self.current_player
-        self.move_count += 1
-        
-        # Check for win
-        winner = self._check_winner()
-        if winner is not None:
-            self.game_over = True
-            self.winner = winner
-            reward = 1 if winner == self.current_player else -1
-            return self.board.copy(), reward, True, {}
-        elif self.move_count >= 9:
-            # Draw
-            self.game_over = True
-            return self.board.copy(), 0, True, {}
+        return self.get_state()
+
+    def _add_to_history(self):
+        """Adds the current state to the history log."""
+        self.history.append({
+            "Quarter": self.quarter,
+            "Player Budget": self.player_stats["budget"],
+            "AI Budget": self.ai_stats["budget"],
+            "Player Market Share": self.player_stats["market_share"],
+            "AI Market Share": self.ai_stats["market_share"],
+            "Player Product Quality": self.player_stats["product_quality"],
+            "AI Product Quality": self.ai_stats["product_quality"],
+        })
+
+    def get_state(self):
+        """Returns the complete current state of the game."""
+        return {
+            "quarter": self.quarter,
+            "player_stats": self.player_stats,
+            "ai_stats": self.ai_stats,
+            "game_over": self.game_over,
+            "history": self.history
+        }
+
+    def get_winner(self):
+        """Determines the winner at the end of the game."""
+        if not self.game_over:
+            return None
+        if self.player_stats["market_share"] > self.ai_stats["market_share"]:
+            return "You"
+        elif self.ai_stats["market_share"] > self.player_stats["market_share"]:
+            return "AI"
         else:
-            # Game continues
-            self.current_player *= -1  # Switch player
-            return self.board.copy(), 0, False, {}
-    
-    def _check_winner(self):
-        """Check if there's a winner."""
-        # Check rows
-        for row in range(3):
-            if abs(self.board[row, :].sum()) == 3:
-                return self.board[row, 0]
+            return "It's a Draw"
+
+    def step(self, player_allocation, ai_allocation):
+        """Executes one quarter of the game."""
+        if self.game_over:
+            return self.get_state()
+
+        self.quarter += 1
+
+        # 1. Update Product Quality from R&D investment
+        self.player_stats["product_quality"] += int(np.sqrt(player_allocation["rd"]) * 1.5)
+        self.ai_stats["product_quality"] += int(np.sqrt(ai_allocation["rd"]) * 1.5)
+
+        # 2. Calculate market share shift from Marketing and Quality
+        mkt_diff = player_allocation["marketing"] - ai_allocation["marketing"]
+        quality_diff = self.player_stats["product_quality"] - self.ai_stats["product_quality"]
         
-        # Check columns
-        for col in range(3):
-            if abs(self.board[:, col].sum()) == 3:
-                return self.board[0, col]
+        # Marketing has a direct but temporary effect, quality has a persistent effect
+        market_share_shift = (mkt_diff / 100.0) + (quality_diff / 50.0)
+        market_share_shift = np.clip(market_share_shift, -7, 7) # Cap shifts per quarter
+
+        self.player_stats["market_share"] += market_share_shift
+        self.ai_stats["market_share"] -= market_share_shift
+        self.player_stats["market_share"] = np.clip(self.player_stats["market_share"], 0, 100)
+        self.ai_stats["market_share"] = 100 - self.player_stats["market_share"]
+
+        # 3. Calculate next quarter's budget from Sales investment and market share
+        player_remaining_budget = self.player_stats['budget'] - sum(player_allocation.values())
+        ai_remaining_budget = self.ai_stats['budget'] - sum(ai_allocation.values())
+
+        player_sales_roi = 1.2 + (self.player_stats["market_share"] / 200.0)
+        ai_sales_roi = 1.2 + (self.ai_stats["market_share"] / 200.0)
         
-        # Check diagonals
-        if abs(self.board.diagonal().sum()) == 3:
-            return self.board[0, 0]
+        self.player_stats["budget"] = int(player_allocation["sales"] * player_sales_roi + player_remaining_budget)
+        self.ai_stats["budget"] = int(ai_allocation["sales"] * ai_sales_roi + ai_remaining_budget)
+
+        if self.quarter >= NUM_QUARTERS:
+            self.game_over = True
         
-        if abs(np.fliplr(self.board).diagonal().sum()) == 3:
-            return self.board[0, 2]
-        
-        return None
+        self._add_to_history()
+
+        return self.get_state()
+
+# --- AI Logic ---
+
+def ai_strategy(ai_stats, player_stats):
+    """
+    A heuristic-based AI to simulate a strategic opponent.
+    This mimics the kind of robust strategy that would emerge from self-play,
+    reacting to the opponent and planning for the long term.
+    """
+    budget = ai_stats["budget"]
+    reasoning = []
     
-    def get_valid_actions(self):
-        """Get list of valid actions (empty positions)."""
-        valid_actions = []
-        for i in range(9):
-            row, col = divmod(i, 3)
-            if self.board[row, col] == 0:
-                valid_actions.append(i)
-        return valid_actions
+    # Default balanced strategy
+    allocation = {"rd": 0.33, "marketing": 0.34, "sales": 0.33}
 
+    # --- Strategic Adjustments based on SPIRAL principles ---
+    # 1. React to quality gap (long-term planning)
+    if ai_stats["product_quality"] < player_stats["product_quality"] - 15:
+        allocation["rd"] += 0.2
+        allocation["marketing"] -= 0.1
+        allocation["sales"] -= 0.1
+        reasoning.append("My analysis indicates a growing product quality gap. I'm increasing R&D investment to innovate and secure a long-term competitive advantage.")
 
-# Global game environment
-tictactoe_env = TicTacToeEnv()
+    # 2. React to market share loss (short-term defense)
+    elif ai_stats["market_share"] < player_stats["market_share"] - 10:
+        allocation["marketing"] += 0.2
+        allocation["rd"] -= 0.1
+        allocation["sales"] -= 0.1
+        reasoning.append("You've recently captured significant market share. I'm launching an aggressive marketing campaign to win back customers and regain my position.")
 
-
-def check_winner(board):
-    """Check if there's a winner on the given board."""
-    # Check rows
-    for row in range(3):
-        if abs(board[row, :].sum()) == 3:
-            return board[row, 0]
+    # 3. Exploit a quality advantage (pressing an advantage)
+    if ai_stats["product_quality"] > player_stats["product_quality"] + 20:
+        allocation["marketing"] += 0.15
+        allocation["rd"] -= 0.15
+        reasoning.append(f"My product quality ({ai_stats['product_quality']:.0f}) is superior. I will leverage this with a marketing push to translate product leadership into market dominance.")
     
-    # Check columns
-    for col in range(3):
-        if abs(board[:, col].sum()) == 3:
-            return board[0, col]
+    # 4. Manage budget (resource management)
+    if ai_stats["budget"] < player_stats["budget"] * 0.8:
+        allocation["sales"] += 0.15
+        allocation["rd"] -= 0.15
+        reasoning.append("My projections show a potential budget shortfall. I am focusing on sales to ensure strong revenue growth for future quarters.")
+
+    if not reasoning:
+        reasoning.append("I am pursuing a balanced strategy, investing across R&D, Marketing, and Sales to ensure steady, long-term growth and market presence.")
+
+    # Normalize allocations
+    total_allocation = sum(allocation.values())
+    final_allocation = {key: int(budget * (val / total_allocation)) for key, val in allocation.items()}
     
-    # Check diagonals
-    if abs(board.diagonal().sum()) == 3:
-        return board[0, 0]
-    
-    if abs(np.fliplr(board).diagonal().sum()) == 3:
-        return board[0, 2]
-    
-    return None
+    # Ensure the sum is exactly the budget
+    diff = budget - sum(final_allocation.values())
+    final_allocation['sales'] += diff
 
+    return final_allocation, " ".join(reasoning)
 
-def get_valid_moves(board):
-    """Get valid moves for the given board."""
-    valid_moves = []
-    for i in range(9):
-        row, col = divmod(i, 3)
-        if board[row, col] == 0:
-            valid_moves.append(i)
-    return valid_moves
-
-
-def minimax(board, player, depth=0):
-    """Minimax algorithm - demonstrates strategic reasoning."""
-    # Base cases
-    winner = check_winner(board)
-    if winner == 1:  # Human wins
-        return -10 + depth, None
-    elif winner == -1:  # AI wins
-        return 10 - depth, None
-    elif len(get_valid_moves(board)) == 0:  # Draw
-        return 0, None
-
-    best_move = None
-    if player == -1:  # AI is maximizing player
-        best_score = -float('inf')
-        for move in get_valid_moves(board):
-            row, col = divmod(move, 3)
-            board[row, col] = -1
-            score, _ = minimax(board.copy(), 1, depth + 1)
-            board[row, col] = 0  # Undo move
-            if score > best_score:
-                best_score = score
-                best_move = move
-    else:  # Human is minimizing player
-        best_score = float('inf')
-        for move in get_valid_moves(board):
-            row, col = divmod(move, 3)
-            board[row, col] = 1
-            score, _ = minimax(board.copy(), -1, depth + 1)
-            board[row, col] = 0  # Undo move
-            if score < best_score:
-                best_score = score
-                best_move = move
-    
-    return best_score, best_move
-
-
-def generate_reasoning(board_state, human_move, ai_move):
-    """Generate reasoning explanation based on game state."""
-    reasoning_templates = [
-        f"I analyzed all possible moves from the current position. After you played position {human_move}, I considered {len(get_valid_moves(board_state))} possible responses. Using minimax tree search, I determined that position {ai_move} gives me the best strategic advantage.",
-        
-        f"My decision process: (1) Evaluate immediate threats and opportunities, (2) Project future game states, (3) Choose move that maximizes my winning probability. Position {ai_move} emerged as optimal after analyzing the full game tree.",
-        
-        f"Strategic analysis: Your move at {human_move} created a new board configuration. I used recursive tree search to evaluate all possible future sequences. Position {ai_move} either creates a winning opportunity or blocks your potential victories.",
-        
-        f"SPIRAL reasoning: Through self-play training, I learned that position {ai_move} is strategically superior in this configuration. This demonstrates how strategic reasoning emerges from multi-agent interaction in zero-sum games."
-    ]
-    
-    return random.choice(reasoning_templates)
-
+# --- Gradio UI ---
 
 def create_interface():
-    """Create the main Gradio interface."""
+    """Creates the Gradio web interface for the simulator."""
     
-    # Custom CSS to style the TicTacToe board
-    css = """
-        .ttt-board {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            max-width: 300px;
-            margin: 0 auto;
-        }
-        .ttt-board > div {
-            display: flex;
-            flex-direction: row;
-            justify-content: center;
-            gap: 8px;
-            margin: 4px 0;
-        }
-        .ttt-board button {
-            width: 80px !important;
-            height: 80px !important;
-            min-width: 80px !important;
-            min-height: 80px !important;
-            max-width: 80px !important;
-            max-height: 80px !important;
-            font-size: 24px !important;
-            font-weight: bold !important;
-            border: 2px solid #374151 !important;
-            border-radius: 8px !important;
-            background: #1f2937 !important;
-            color: white !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-        }
-        .ttt-board button:hover {
-            background: #374151 !important;
-            border-color: #6b7280 !important;
-        }
-        .ttt-board button:disabled {
-            opacity: 0.8 !important;
-            cursor: not-allowed !important;
-        }
-        .ttt-stats {
-            text-align: center !important;
-            margin: 20px 0 !important;
-            font-size: 16px !important;
-        }
-        .ttt-stats p {
-            margin: 0 !important;
-            color: #9ca3af !important;
-        }
-    """
-    
-    with gr.Blocks(title="SPIRAL: Self-Play Reasoning Demo", theme=gr.themes.Soft(), css=css) as demo:
-        gr.Markdown("# 🎮 SPIRAL: Self-Play Reasoning Demo")
-        gr.Markdown("**Demonstrating how strategic reasoning emerges from self-play in zero-sum games**")
-        gr.Markdown("*Based on: \"Self-Play in Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning\"*")
-        
-        def update_board_buttons():
-            """Create a list of gr.Button updates from the current board state."""
-            updates = []
-            for i in range(9):
-                row, col = divmod(i, 3)
-                cell = tictactoe_env.board[row, col]
-                val = ""
-                interactive = True
-                if cell == 1:
-                    val = '❌'
-                    interactive = False
-                elif cell == -1:
-                    val = '⭕'
-                    interactive = False
-                
-                if tictactoe_env.game_over:
-                    interactive = False
+    with gr.Blocks(title=TITLE, theme=gr.themes.Soft()) as demo:
+        game_env = gr.State(BusinessCompetitionEnv())
 
-                updates.append(gr.Button(value=val, interactive=interactive))
-            return updates
-
-        ttt_stats = gr.State({'wins': 0, 'losses': 0, 'draws': 0})
-        
-        @spaces.GPU
-        def play_tictactoe(position, stats):
-            """
-            Main game loop for TicTacToe. Handles human move, AI response, and updates state.
-            This function is decorated with @spaces.GPU to satisfy the Hugging Face Spaces
-            runtime, even though the TicTacToe logic does not require GPU acceleration.
-            The underlying issue is a mismatch between the selected GPU hardware and the
-            CPU-bound nature of the application.
-            """
-            if tictactoe_env.game_over:
-                yield *update_board_buttons(), "Game is over! Click 'New Game' to start again.", "", stats
-                return
-
-            try:
-                position = int(position)
-                
-                # Human move
-                board_state, reward, done, info = tictactoe_env.step(position)
-                
-                if done:
-                    if info.get("invalid_move"):
-                        yield *update_board_buttons(), "Invalid move! Try again.", "", stats
-                        return
-                    
-                    winner = "You" if tictactoe_env.winner == 1 else "AI" if tictactoe_env.winner == -1 else "Draw"
-                    if winner == "You": stats['wins'] += 1
-                    elif winner == "AI": stats['losses'] += 1
-                    else: stats['draws'] += 1
-                    yield *update_board_buttons(), f"Game Over! {winner} won!", "", stats
-                    return
-
-                # Show AI thinking
-                yield *update_board_buttons(), "AI is analyzing the game tree...", "🧠 Strategic reasoning in progress...", stats
-
-                # AI move using minimax
-                _, ai_action = minimax(tictactoe_env.board.copy(), -1)
-                if ai_action is None:
-                    valid_actions = tictactoe_env.get_valid_actions()
-                    if not valid_actions:
-                        yield *update_board_buttons(), "Game is a draw!", "", stats
-                        return
-                    ai_action = random.choice(valid_actions)
-                
-                # Generate reasoning explanation
-                reasoning = generate_reasoning(tictactoe_env.board.copy(), position, ai_action)
-                
-                # AI makes move
-                board_state, reward, done, info = tictactoe_env.step(ai_action)
-                
-                if done:
-                    winner = "You" if tictactoe_env.winner == 1 else "AI" if tictactoe_env.winner == -1 else "Draw"
-                    if winner == "You": stats['wins'] += 1
-                    elif winner == "AI": stats['losses'] += 1
-                    else: stats['draws'] += 1
-                    yield *update_board_buttons(), f"Game Over! {winner} won! AI played position {ai_action}.", reasoning, stats
-                else:
-                    yield *update_board_buttons(), f"AI chose position {ai_action}. Your turn!", reasoning, stats
-            
-            except Exception as e:
-                yield *update_board_buttons(), f"Error: {str(e)}", "", stats
-
-        def reset_tictactoe(stats):
-            """Reset TicTacToe game."""
-            tictactoe_env.reset()
-            return *update_board_buttons(), "New game started! You are ❌ (X). Click a square to demonstrate strategic reasoning.", "The AI will explain its strategic decision-making process...", stats
+        gr.Markdown(f"# 🎮 {TITLE}")
+        gr.Markdown(
+            "**Demonstrating how complex, multi-turn strategic reasoning emerges from self-play.**\n"
+            "*This simulation replaces Tic-Tac-Toe with a business competition to better illustrate the practical takeaways from the SPIRAL paper.*"
+        )
         
         with gr.Row():
-            with gr.Column(scale=2):
-                status_box = gr.Textbox("Welcome to SPIRAL TicTacToe! You are ❌ (X). Click a square to begin.", label="Game Status", interactive=False)
-                reasoning_box = gr.Textbox("The AI will explain its strategic moves here.", label="AI Reasoning", interactive=False, lines=4)
-                
-                with gr.Column(elem_classes=["ttt-board"]):
-                    board_buttons = []
-                    for i in range(3):
-                        with gr.Row():
-                            for j in range(3):
-                                pos = i * 3 + j
-                                btn = gr.Button("", elem_id=f"ttt-btn-{pos}")
-                                board_buttons.append(btn)
-                
+            with gr.Column(scale=3):
+                gr.Markdown("### 📈 Market Dashboard")
+                plot_market_share = gr.Plot()
                 with gr.Row():
-                    new_game_btn = gr.Button("New Game", variant="primary")
+                    plot_budget = gr.Plot()
+                    plot_quality = gr.Plot()
+            
+            with gr.Column(scale=2):
+                gr.Markdown("### 📊 Your Decisions")
+                status_box = gr.Textbox(f"Quarter 1 of {NUM_QUARTERS}. Your move.", label="Game Status", interactive=False)
                 
-                # Hidden state for passing button clicks
-                clicked_pos = gr.Textbox(visible=False)
+                with gr.Box():
+                    player_budget_display = gr.Label(f"Your Budget: ${INITIAL_BUDGET}")
+                    rd_slider = gr.Slider(0, INITIAL_BUDGET, label="R&D Investment", value=333, step=10)
+                    mkt_slider = gr.Slider(0, INITIAL_BUDGET, label="Marketing Investment", value=333, step=10)
+                    sales_slider = gr.Slider(0, INITIAL_BUDGET, label="Sales Investment", value=334, step=10)
+                
+                total_allocated_display = gr.Label("Total Allocated: $1000")
 
-            with gr.Column(scale=1):
-                gr.Markdown("### 📊 Game Stats")
-                stats_display = gr.Markdown("Wins: 0 | Losses: 0 | Draws: 0", elem_classes=["ttt-stats"])
-                
-                def update_stats_display(stats):
-                    return f"Wins: {stats['wins']} | Losses: {stats['losses']} | Draws: {stats['draws']}"
-                
-                gr.Markdown("""
-                ### 🤔 What is SPIRAL?
-                SPIRAL stands for **Self-Play in Reinforcement Learning**. This demo illustrates a core concept from the paper: by playing against itself millions of times, an AI can learn complex, human-like strategic reasoning without being explicitly programmed with rules like "take the center square."
+                with gr.Row():
+                    submit_btn = gr.Button("End Quarter", variant="primary")
+                    new_game_btn = gr.Button("Start New Game")
 
-                The AI here uses a simple **minimax** algorithm, a classic game theory tree search method, to find the optimal move. This serves as a stand-in for the more complex neural networks used in the actual SPIRAL research.
-                """)
+                gr.Markdown("### 🧠 AI Strategic Reasoning")
+                ai_reasoning_box = gr.Textbox("", label="AI Decision Rationale", lines=5, interactive=False)
+        
+        gr.Markdown("---")
+        with gr.Accordion("Key Takeaways from the SPIRAL Research Paper", open=False):
+            gr.Markdown(open("spiral_paper_takeaways.md").read())
+
+        def create_plots(history):
+            df = pd.DataFrame(history)
+            if df.empty:
+                return None, None, None
+            
+            fig_ms = px.line(df, x="Quarter", y=["Player Market Share", "AI Market Share"], title="Market Share (%)", markers=True, color_discrete_map={"Player Market Share": "#3b82f6", "AI Market Share": "#ef4444"})
+            fig_ms.update_layout(yaxis_range=[0,100], legend_title_text='')
+
+            fig_b = px.line(df, x="Quarter", y=["Player Budget", "AI Budget"], title="Budget ($)", markers=True, color_discrete_map={"Player Budget": "#3b82f6", "AI Budget": "#ef4444"})
+            fig_b.update_layout(legend_title_text='')
+
+            fig_q = px.line(df, x="Quarter", y=["Player Product Quality", "AI Product Quality"], title="Product Quality Index", markers=True, color_discrete_map={"Player Product Quality": "#3b82f6", "AI Product Quality": "#ef4444"})
+            fig_q.update_layout(legend_title_text='')
+
+            return fig_ms, fig_b, fig_q
+
+        def game_step_and_update(env, rd, mkt, sales):
+            player_budget = env.player_stats["budget"]
+            if (rd + mkt + sales) > player_budget:
+                status_text = f"Error: Allocation (${rd + mkt + sales}) exceeds budget (${player_budget})."
+                return env, status_text, env.ai_stats, *create_plots(env.history), gr.Label(f"Your Budget: ${player_budget}"), gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget), gr.Slider(maximum=player_budget)
+
+            player_alloc = {"rd": rd, "marketing": mkt, "sales": sales}
+            ai_alloc, ai_reasoning = ai_strategy(env.ai_stats, env.player_stats)
+            
+            env.step(player_alloc, ai_alloc)
+            state = env.get_state()
+            
+            plots = create_plots(state["history"])
+
+            if state["game_over"]:
+                winner = env.get_winner()
+                status_text = f"Game Over! Winner: {winner}. Final market share: You ({state['player_stats']['market_share']:.1f}%) vs AI ({state['ai_stats']['market_share']:.1f}%)."
+                submit_btn.interactive = False
+            else:
+                status_text = f"End of Quarter {state['quarter']}. Your turn."
+
+            new_budget = state["player_stats"]["budget"]
+            
+            return (state, status_text, ai_reasoning, *plots, 
+                    gr.Label(f"Your Budget: ${new_budget}"), 
+                    gr.Slider(maximum=new_budget, value=int(new_budget/3)), 
+                    gr.Slider(maximum=new_budget, value=int(new_budget/3)), 
+                    gr.Slider(maximum=new_budget, value=new_budget - 2 * int(new_budget/3)))
+
+        def on_new_game():
+            env = BusinessCompetitionEnv()
+            state = env.get_state()
+            plots = create_plots(state["history"])
+            return (
+                env, f"Quarter 1 of {NUM_QUARTERS}. Your move.", "", *plots, 
+                gr.Label(f"Your Budget: ${INITIAL_BUDGET}"), 
+                gr.Slider(maximum=INITIAL_BUDGET, value=333), 
+                gr.Slider(maximum=INITIAL_BUDGET, value=333), 
+                gr.Slider(maximum=INITIAL_BUDGET, value=334),
+                gr.Button(interactive=True)
+            )
+            
+        def update_total_display(rd, mkt, sales):
+            return gr.Label(f"Total Allocated: ${rd + mkt + sales}")
         
         # --- Event Handlers ---
+        submit_btn.click(
+            fn=game_step_and_update,
+            inputs=[game_env, rd_slider, mkt_slider, sales_slider],
+            outputs=[
+                game_env, status_box, ai_reasoning_box, 
+                plot_market_share, plot_budget, plot_quality,
+                player_budget_display, rd_slider, mkt_slider, sales_slider
+            ]
+        )
         
-        def on_board_click(pos, stats):
-            """Handler for board button clicks. Propagates to main game logic."""
-            yield from play_tictactoe(pos, stats)
-        
-        # Link button clicks to the handler
-        for i, btn in enumerate(board_buttons):
-            btn.click(
-                fn=on_board_click, 
-                inputs=[gr.Textbox(str(i), visible=False), ttt_stats], 
-                outputs=[*board_buttons, status_box, reasoning_box, ttt_stats]
-            )
-
-        # Link new game button to reset function
         new_game_btn.click(
-            fn=reset_tictactoe, 
-            inputs=[ttt_stats],
-            outputs=[*board_buttons, status_box, reasoning_box, ttt_stats]
+            fn=on_new_game,
+            inputs=[],
+            outputs=[
+                game_env, status_box, ai_reasoning_box, 
+                plot_market_share, plot_budget, plot_quality,
+                player_budget_display, rd_slider, mkt_slider, sales_slider,
+                submit_btn
+            ]
         )
         
-        # Update stats display when ttt_stats changes
-        ttt_stats.change(
-            fn=update_stats_display,
-            inputs=ttt_stats,
-            outputs=stats_display
-        )
-        
+        for slider in [rd_slider, mkt_slider, sales_slider]:
+            slider.change(fn=update_total_display, inputs=[rd_slider, mkt_slider, sales_slider], outputs=total_allocated_display)
+
+        demo.load(on_new_game, outputs=[game_env, status_box, ai_reasoning_box, plot_market_share, plot_budget, plot_quality, player_budget_display, rd_slider, mkt_slider, sales_slider, submit_btn])
+
     return demo
 
 
 if __name__ == "__main__":
-    # Create and launch the Gradio interface
     spiral_demo = create_interface()
     spiral_demo.launch()
