@@ -3,9 +3,6 @@ SPIRAL: Strategic Business Competition Simulator
 
 This demo has been updated to more intuitively demonstrate the key concepts from the 
 "Self-Play in Zero-Sum Games Incentivizes Reasoning" (SPIRAL) research paper.
-
-Instead of Tic-Tac-Toe, this simulation uses a zero-sum business competition to showcase
-complex, multi-turn strategic reasoning in a more practical and relatable context.
 """
 
 import gradio as gr
@@ -291,9 +288,9 @@ def create_interface():
             This demo is inspired by the SPIRAL framework from the research paper: [SPIRAL: Self-Play on Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning](https://arxiv.org/abs/2506.24119).
 
             ### Key Links to SPIRAL Paper Takeaways
-            - **Transferable Reasoning:** Your R&D investments build long-term planning skills, transferable to real-world logic problems (Takeaway 2).
-            - **Diverse Skills:** Marketing encourages probabilistic thinking (like Poker), while Sales focuses on resource foresight (Takeaway 4).
-            - **Synergy from Multi-Game Training:** Combining these creates a well-rounded strategy, better than focusing on one area (Takeaway 5).
+            - **Transferable Reasoning:** Your R&D investments build long-term planning skills, transferable to real-world logic problems.
+            - **Diverse Skills:** Marketing encourages probabilistic thinking (like Poker), while Sales focuses on resource foresight.
+            - **Synergy from Multi-Game Training:** Combining these creates a well-rounded strategy, better than focusing on one area.
 
             ### How to Use the App
 
