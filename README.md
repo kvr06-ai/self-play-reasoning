@@ -1,42 +1,39 @@
 ---
-title: Reasoning Simulator
-emoji: 🏆
-colorFrom: gray
-colorTo: blue
+title: "SPIRAL: Strategic Business Competition"
+emoji: 📈
+colorFrom: blue
+colorTo: green
 sdk: gradio
-sdk_version: 5.36.2
+sdk_version: 4.29.0
 app_file: app.py
 pinned: false
 license: apache-2.0
-short_description: An interactive reasoning game simulator
+short_description: An interactive simulator for strategic business competition.
 ---
 
-# SPIRAL: Self-Play Reasoning Demo
+# SPIRAL: Strategic Business Competition Simulator
 
-**Demonstrating how strategic reasoning emerges from self-play in zero-sum games**
+**An interactive demo inspired by the paper: *"Self-Play in Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning"***
 
-Based on: *"Self-Play in Zero-Sum Games Incentivizes Reasoning via Multi-Agent Multi-Turn Reinforcement Learning"*
+This demo has been updated to more intuitively demonstrate the core concepts of the SPIRAL research. Instead of a simple board game, it uses a **strategic business competition** to showcase how competitive pressures in a zero-sum environment can lead to complex, multi-turn reasoning and planning.
 
-## 🎮 Interactive Demo
+## 🎮 The Game: A Zero-Sum Business Battle
 
-This simplified demo showcases the key concepts from the SPIRAL research through an interactive TicTacToe game. Watch as the AI demonstrates strategic reasoning using minimax tree search and explains its decision-making process.
+You and an AI competitor are in charge of rival companies. Over 12 quarters (turns), you must make critical budget allocation decisions to win market share. The company with the highest market share at the end of the game wins.
+
+Your goal is to strategically allocate your quarterly budget across three key areas:
+- **Research & Development (R&D):** Increases your product quality, providing a long-term competitive advantage.
+- **Marketing:** Directly captures market share from your opponent in the short term.
+- **Sales:** Generates revenue for your next quarter's budget, fueling future growth.
 
 ## 🧠 Key Concepts Demonstrated
 
-### Strategic Reasoning
-- AI uses minimax tree search to evaluate all possible future moves
-- Demonstrates how optimal strategies emerge from competitive gameplay
-- Shows explicit reasoning explanations for each move
+This simulator illustrates how principles from the SPIRAL framework emerge in a dynamic system:
 
-### Self-Play Learning Principles
-- Zero-sum games create competitive pressure that incentivizes strategic thinking
-- Multi-agent interactions naturally develop intelligent behavior
-- Strategic patterns emerge from repeated competitive gameplay
-
-### Tree Search & Planning
-- Minimax algorithm demonstrates formalized strategic reasoning
-- Look-ahead planning to evaluate future game states
-- Optimal decision-making under competitive constraints
+- **Strategic Reasoning:** The AI analyzes your moves and market conditions to make counter-moves, balancing short-term gains (Marketing) with long-term investments (R&D).
+- **Multi-Turn Planning:** A decision to over-invest in marketing for a quick win might leave you with a poor product and low budget in later quarters. You must plan ahead.
+- **Emergent Strategies:** There is no single "best" move. The optimal strategy depends on your opponent's actions, forcing you to adapt and reason about their potential choices.
+- **Resource Management:** In this zero-sum game, every percentage of market share you gain, the AI loses. Efficiently managing your budget is critical to victory.
 
 ## 🚀 Running the Demo
 
@@ -59,34 +56,32 @@ The demo is deployed and ready to use at:
 
 ## 📝 How It Works
 
-1. **Human Move**: Click any square to make your move as X
-2. **AI Analysis**: The AI analyzes the game tree using minimax search
-3. **Strategic Reasoning**: Watch the AI explain its decision-making process
-4. **Optimal Play**: The AI chooses the move that maximizes its winning probability
+1.  **Allocate Your Budget:** Use the sliders to decide how to allocate your budget for the quarter.
+2.  **Submit Your Move:** Once you finalize your allocation, submit it.
+3.  **AI Analysis & Counter-Move:** The AI evaluates the game state and your strategy, then makes its own budget allocation. The AI's reasoning is printed for you to see.
+4.  **Quarterly Results:** The simulation advances one quarter. Market share shifts, product quality improves, and new budgets are calculated based on both of your decisions.
+5.  **Review and Adapt:** Analyze the results on the dashboard and adapt your strategy for the next quarter.
 
 ## 🔬 Research Connection
 
-This demo illustrates core findings from the SPIRAL methodology:
+This demo connects directly to the core findings of the SPIRAL methodology:
+-   **Zero-Sum Environments Drive Strategy:** The business competition is a zero-sum game for market share, creating the competitive pressure needed for strategic reasoning to emerge.
+-   **Anticipatory Planning:** Success requires you to anticipate how your investments will pay off over several turns and how your opponent will react.
+-   **Transferable Reasoning:** The skills developed in this complex game—balancing priorities, managing resources, and predicting opponent behavior—are forms of general strategic reasoning.
 
-- **Zero-sum competitive environments** naturally incentivize strategic reasoning
-- **Multi-turn planning** emerges from the need to anticipate opponent moves
-- **Strategic reasoning capabilities** developed through self-play can transfer to general reasoning tasks
-- **Tree search algorithms** formalize the strategic reasoning process
+## _Dual Git Remotes_
 
-## 🎯 Educational Value
+This repository is configured with two remotes:
 
-Perfect for:
-- Understanding strategic AI decision-making
-- Learning about game theory and minimax algorithms
-- Exploring the connection between competition and intelligence
-- Visualizing how reasoning emerges from strategic gameplay
+-   **`origin`**: Pushes to the Hugging Face Space for deployment.
+-   **`github`**: Pushes to the public GitHub repository for development and version control.
 
-## 📊 Technical Details
+To push changes to both platforms, you can use the following commands:
 
-- **Game Environment**: Clean TicTacToe implementation with proper state management
-- **AI Strategy**: Minimax algorithm with optimal move selection
-- **Reasoning Display**: Generated explanations of AI strategic thinking
-- **Interactive Interface**: Real-time game state updates and move explanations
+```bash
+git push origin main
+git push github main
+```
 
 ---
 
