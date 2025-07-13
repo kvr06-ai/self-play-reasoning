@@ -203,7 +203,7 @@ def create_interface():
                 gr.Markdown("### 📊 Your Decisions")
                 status_box = gr.Textbox(f"Quarter 1 of {NUM_QUARTERS}. Your move.", label="Game Status", interactive=False)
                 
-                with gr.Box():
+                with gr.Group():
                     player_budget_display = gr.Label(f"Your Budget: ${INITIAL_BUDGET}")
                     rd_slider = gr.Slider(0, INITIAL_BUDGET, label="R&D Investment", value=333, step=10)
                     mkt_slider = gr.Slider(0, INITIAL_BUDGET, label="Marketing Investment", value=333, step=10)
