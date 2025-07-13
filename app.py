@@ -218,10 +218,6 @@ def create_interface():
                 gr.Markdown("### 🧠 AI Strategic Reasoning")
                 ai_reasoning_box = gr.Textbox("", label="AI Decision Rationale", lines=5, interactive=False)
         
-        gr.Markdown("---")
-        with gr.Accordion("Key Takeaways from the SPIRAL Research Paper", open=False):
-            gr.Markdown(open("spiral_paper_takeaways.md").read())
-
         def create_plots(history):
             df = pd.DataFrame(history)
             if df.empty:
