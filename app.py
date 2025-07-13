@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import spaces
+import json
 
 # --- Game Configuration ---
 INITIAL_BUDGET = 1000
@@ -117,6 +118,10 @@ class BusinessCompetitionEnv:
         self.player_stats["budget"] = int(player_allocation["sales"] * player_sales_roi + player_remaining_budget)
         self.ai_stats["budget"] = int(ai_allocation["sales"] * ai_sales_roi + ai_remaining_budget)
 
+        # Error Handling: Clamp budgets to >=0
+        self.player_stats["budget"] = max(0, self.player_stats["budget"])
+        self.ai_stats["budget"] = max(0, self.ai_stats["budget"])
+
         if self.quarter >= NUM_QUARTERS:
             self.game_over = True
         
@@ -126,7 +131,7 @@ class BusinessCompetitionEnv:
 
 # --- AI Logic ---
 
-def ai_strategy(ai_stats, player_stats):
+def ai_strategy(ai_stats, player_stats, quarter):
     """
     A heuristic-based AI to simulate a strategic opponent.
     This mimics the kind of robust strategy that would emerge from self-play,
@@ -139,38 +144,51 @@ def ai_strategy(ai_stats, player_stats):
     allocation = {"rd": 0.33, "marketing": 0.34, "sales": 0.33}
 
     # --- Strategic Adjustments based on SPIRAL principles ---
+    # Dynamic thresholds: Tighten as game progresses (simulates adaptive curriculum)
+    quality_gap_threshold = 15 - (quarter // 3)  # E.g., starts at 15, drops to 9 by quarter 9
+    market_share_threshold = 10 - (quarter // 4)  # Starts at 10, drops to 7 by quarter 8
+    quality_advantage_threshold = 20 - (quarter // 3)
+    budget_threshold = 0.8 + (quarter / 100.0)  # Slightly increases to make AI more conservative later
+
     # 1. React to quality gap (long-term planning)
-    if ai_stats["product_quality"] < player_stats["product_quality"] - 15:
+    if ai_stats["product_quality"] < player_stats["product_quality"] - quality_gap_threshold:
         allocation["rd"] += 0.2
         allocation["marketing"] -= 0.1
         allocation["sales"] -= 0.1
-        reasoning.append("My analysis indicates a growing product quality gap. I'm increasing R&D investment to innovate and secure a long-term competitive advantage.")
+        reasoning.append(f"Quarter {quarter}: My analysis indicates a growing product quality gap (threshold: {quality_gap_threshold}). I'm increasing R&D investment to innovate and secure a long-term competitive advantage.")
 
     # 2. React to market share loss (short-term defense)
-    elif ai_stats["market_share"] < player_stats["market_share"] - 10:
+    elif ai_stats["market_share"] < player_stats["market_share"] - market_share_threshold:
         allocation["marketing"] += 0.2
         allocation["rd"] -= 0.1
         allocation["sales"] -= 0.1
-        reasoning.append("You've recently captured significant market share. I'm launching an aggressive marketing campaign to win back customers and regain my position.")
+        reasoning.append(f"Quarter {quarter}: You've recently captured significant market share (threshold: {market_share_threshold}). I'm launching an aggressive marketing campaign to win back customers and regain my position.")
 
     # 3. Exploit a quality advantage (pressing an advantage)
-    if ai_stats["product_quality"] > player_stats["product_quality"] + 20:
+    if ai_stats["product_quality"] > player_stats["product_quality"] + quality_advantage_threshold:
         allocation["marketing"] += 0.15
         allocation["rd"] -= 0.15
-        reasoning.append(f"My product quality ({ai_stats['product_quality']:.0f}) is superior. I will leverage this with a marketing push to translate product leadership into market dominance.")
+        reasoning.append(f"Quarter {quarter}: My product quality ({ai_stats['product_quality']:.0f}) is superior (threshold: {quality_advantage_threshold}). I will leverage this with a marketing push to translate product leadership into market dominance.")
     
     # 4. Manage budget (resource management)
-    if ai_stats["budget"] < player_stats["budget"] * 0.8:
+    if ai_stats["budget"] < player_stats["budget"] * budget_threshold:
         allocation["sales"] += 0.15
         allocation["rd"] -= 0.15
-        reasoning.append("My projections show a potential budget shortfall. I am focusing on sales to ensure strong revenue growth for future quarters.")
+        reasoning.append(f"Quarter {quarter}: My projections show a potential budget shortfall (threshold: {budget_threshold:.2f}). I am focusing on sales to ensure strong revenue growth for future quarters.")
 
     if not reasoning:
-        reasoning.append("I am pursuing a balanced strategy, investing across R&D, Marketing, and Sales to ensure steady, long-term growth and market presence.")
+        reasoning.append(f"Quarter {quarter}: I am pursuing a balanced strategy, investing across R&D, Marketing, and Sales to ensure steady, long-term growth and market presence.")
 
     # Normalize allocations
     total_allocation = sum(allocation.values())
     final_allocation = {key: int(budget * (val / total_allocation)) for key, val in allocation.items()}
+    
+    # Simulate RAE-inspired stability: Average with a "role-reversed" allocation
+    role_reversed_alloc = {"rd": allocation["rd"], "marketing": allocation["sales"], "sales": allocation["marketing"]}  # Simple swap for variance reduction
+    reversed_total = sum(role_reversed_alloc.values())
+    reversed_final = {key: int(budget * (val / reversed_total)) for key, val in role_reversed_alloc.items()}
+    for key in final_allocation:
+        final_allocation[key] = int((final_allocation[key] + reversed_final[key]) / 2)
     
     # Ensure the sum is exactly the budget
     diff = budget - sum(final_allocation.values())
@@ -207,6 +225,11 @@ def create_interface():
             -   **Emergent Strategy:** The AI's decision-making process illustrates how an agent can learn to balance priorities, react to threats, and press advantages—all without being explicitly programmed for each scenario. This is a core concept of self-play.
             -   **Multi-Turn Reasoning:** Observe the AI's rationale. It often makes decisions based on future projections (e.g., potential budget shortfalls or quality gaps), showcasing a capacity for long-term planning.
             -   **Zero-Sum Dynamics:** The simulation is a zero-sum game for market share, creating the competitive pressure that, according to the SPIRAL paper, is essential for incentivizing robust reasoning.
+
+            ### Key Links to SPIRAL Paper Takeaways
+            - **Transferable Reasoning:** Your R&D investments build long-term planning skills, transferable to real-world logic problems (Takeaway 2).
+            - **Diverse Skills:** Marketing encourages probabilistic thinking (like Poker), while Sales focuses on resource foresight (Takeaway 4).
+            - **Synergy from Multi-Game Training:** Combining these creates a well-rounded strategy, better than focusing on one area (Takeaway 5).
 
             ### How to Use the App
 
@@ -255,9 +278,17 @@ def create_interface():
                 with gr.Row():
                     submit_btn = gr.Button("End Quarter", variant="primary")
                     new_game_btn = gr.Button("Start New Game")
+                    ai_vs_ai_btn = gr.Button("Simulate AI vs AI")
+
+                with gr.Row():
+                    save_btn = gr.Button("Save Game")
+                    load_file = gr.File(label="Load Game JSON")
 
                 gr.Markdown("### 🧠 AI Strategic Reasoning")
                 ai_reasoning_box = gr.Textbox("", label="AI Decision Rationale", lines=5, interactive=False)
+
+                gr.Markdown("### 📝 Post-Game Analysis")
+                analysis_box = gr.Textbox("", label="Strategy Insights", lines=3, interactive=False)
         
         def create_plots(history):
             df = pd.DataFrame(history)
@@ -286,7 +317,8 @@ def create_interface():
                     gr.update(value=f"Your Budget: ${player_budget}"),
                     gr.update(), gr.update(), gr.update(), # Raw sliders
                     gr.update(), gr.update(), gr.update(), # Pct sliders
-                    gr.update(interactive=True) # Submit button
+                    gr.update(interactive=True), # Submit button
+                    gr.update()  # Analysis box
                 )
 
             if mode == "Percentages":
@@ -307,7 +339,7 @@ def create_interface():
                 return create_error_return(f"Error: Allocation (${rd_alloc_val + mkt_alloc_val + sales_alloc_val}) exceeds budget (${player_budget}).")
 
             player_alloc = {"rd": rd_alloc_val, "marketing": mkt_alloc_val, "sales": sales_alloc_val}
-            ai_alloc, ai_reasoning = ai_strategy(env.ai_stats, env.player_stats)
+            ai_alloc, ai_reasoning = ai_strategy(env.ai_stats, env.player_stats, env.quarter + 1)  # Pass next quarter
             env.ai_stats["last_reasoning"] = ai_reasoning
             
             env.step(player_alloc, ai_alloc)
@@ -316,10 +348,16 @@ def create_interface():
             plots = create_plots(state["history"])
 
             submit_btn_update = gr.update(interactive=True)
+            analysis_text = ""
             if state["game_over"]:
                 winner = env.get_winner()
                 status_text = f"Game Over! Winner: {winner}. Final market share: You ({state['player_stats']['market_share']:.1f}%) vs AI ({state['ai_stats']['market_share']:.1f}%)."
                 submit_btn_update = gr.update(interactive=False)
+                # Post-game analysis
+                final_history = state["history"][-1]
+                rd_invest = final_history["Player Product Quality"] - INITIAL_PRODUCT_QUALITY
+                sales_focus = final_history["Player Budget"] > INITIAL_BUDGET
+                analysis_text = f"Post-Game Analysis: Your strategy showed synergy by balancing skills—e.g., high R&D (quality gain: {rd_invest}) with Sales (budget growth: {sales_focus}) led to transferable reasoning advantages."
             else:
                 status_text = f"End of Quarter {state['quarter']}. Your turn."
 
@@ -332,7 +370,8 @@ def create_interface():
                 gr.update(maximum=new_budget, value=int(new_budget/3)), 
                 gr.update(maximum=new_budget, value=new_budget - 2 * int(new_budget/3)),
                 gr.update(value=33), gr.update(value=33), gr.update(value=34),
-                submit_btn_update
+                submit_btn_update,
+                analysis_text
             )
 
         def on_new_game():
@@ -346,7 +385,8 @@ def create_interface():
                 gr.update(maximum=INITIAL_BUDGET, value=333), 
                 gr.update(maximum=INITIAL_BUDGET, value=334),
                 gr.update(value=33), gr.update(value=33), gr.update(value=34),
-                gr.update(interactive=True)
+                gr.update(interactive=True),
+                ""
             )
             
         def update_total_raw_display(rd, mkt, sales):
@@ -358,6 +398,49 @@ def create_interface():
         def toggle_allocation_mode(mode):
             return gr.update(visible=mode == "Raw Values"), gr.update(visible=mode == "Percentages")
 
+        def adjust_pct_sliders(rd, mkt):
+            return gr.update(value=100 - rd - mkt)
+
+        def simulate_ai_vs_ai():
+            env = BusinessCompetitionEnv()
+            all_reasoning = []
+            for q in range(1, NUM_QUARTERS + 1):
+                player_alloc, player_reasoning = ai_strategy(env.player_stats, env.ai_stats, q)  # Player as AI copy
+                ai_alloc, ai_reasoning = ai_strategy(env.ai_stats, env.player_stats, q)
+                env.step(player_alloc, ai_alloc)
+                all_reasoning.append(f"Quarter {q}: AI1 Reasoning: {player_reasoning} | AI2 Reasoning: {ai_reasoning}")
+            state = env.get_state()
+            winner = env.get_winner()
+            plots = create_plots(state["history"])
+            analysis_text = f"AI vs AI Simulation: Synergy in self-play led to balanced strategies. Winner: {winner}."
+            return "\n\n".join(all_reasoning), *plots, f"AI vs AI Simulation Complete! Winner: {winner}", analysis_text
+
+        def save_game(env):
+            return json.dumps(env.get_state()["history"])
+
+        def load_game(file):
+            if file is None:
+                return None, "No file uploaded."
+            with open(file.name, "r") as f:
+                history = json.load(f)
+            env = BusinessCompetitionEnv()
+            env.history = history
+            env.quarter = history[-1]["Quarter"]
+            env.player_stats = {
+                "budget": history[-1]["Player Budget"],
+                "market_share": history[-1]["Player Market Share"],
+                "product_quality": history[-1]["Player Product Quality"],
+            }
+            env.ai_stats = {
+                "budget": history[-1]["AI Budget"],
+                "market_share": history[-1]["AI Market Share"],
+                "product_quality": history[-1]["AI Product Quality"],
+            }
+            env.game_over = env.quarter >= NUM_QUARTERS
+            plots = create_plots(env.history)
+            status = f"Loaded game at Quarter {env.quarter}. Your move." if not env.game_over else "Loaded completed game."
+            return env, status, "", *plots, gr.update(value=f"Your Budget: ${env.player_stats['budget']}"), *([gr.update()] * 6), gr.update(interactive=not env.game_over), ""
+
         # --- Event Handlers ---
         submit_btn.click(
             fn=game_step_and_update,
@@ -368,7 +451,8 @@ def create_interface():
                 player_budget_display, 
                 rd_slider_raw, mkt_slider_raw, sales_slider_raw,
                 rd_slider_pct, mkt_slider_pct, sales_slider_pct,
-                submit_btn
+                submit_btn,
+                analysis_box
             ]
         )
         
@@ -381,7 +465,34 @@ def create_interface():
                 player_budget_display, 
                 rd_slider_raw, mkt_slider_raw, sales_slider_raw,
                 rd_slider_pct, mkt_slider_pct, sales_slider_pct,
-                submit_btn
+                submit_btn,
+                analysis_box
+            ]
+        )
+        
+        ai_vs_ai_btn.click(
+            fn=simulate_ai_vs_ai,
+            inputs=[],
+            outputs=[ai_reasoning_box, plot_market_share, plot_budget, plot_quality, status_box, analysis_box]
+        )
+
+        save_btn.click(
+            fn=save_game,
+            inputs=game_env,
+            outputs=gr.File(label="Download Game JSON")
+        )
+
+        load_file.change(
+            fn=load_game,
+            inputs=load_file,
+            outputs=[
+                game_env, status_box, ai_reasoning_box, 
+                plot_market_share, plot_budget, plot_quality,
+                player_budget_display, 
+                rd_slider_raw, mkt_slider_raw, sales_slider_raw,
+                rd_slider_pct, mkt_slider_pct, sales_slider_pct,
+                submit_btn,
+                analysis_box
             ]
         )
         
@@ -392,6 +503,10 @@ def create_interface():
         for slider in [rd_slider_pct, mkt_slider_pct, sales_slider_pct]:
             slider.change(fn=update_total_pct_display, inputs=[rd_slider_pct, mkt_slider_pct, sales_slider_pct], outputs=total_allocated_pct_display)
 
+        # Auto-adjust percentage sliders
+        rd_slider_pct.change(fn=adjust_pct_sliders, inputs=[rd_slider_pct, mkt_slider_pct], outputs=sales_slider_pct)
+        mkt_slider_pct.change(fn=adjust_pct_sliders, inputs=[rd_slider_pct, mkt_slider_pct], outputs=sales_slider_pct)
+
         # Handler for toggling allocation modes
         allocation_mode_radio.change(
             fn=toggle_allocation_mode,
@@ -399,7 +514,7 @@ def create_interface():
             outputs=[raw_values_group, percentage_group]
         )
 
-        demo.load(on_new_game, outputs=[game_env, status_box, ai_reasoning_box, plot_market_share, plot_budget, plot_quality, player_budget_display, rd_slider_raw, mkt_slider_raw, sales_slider_raw, rd_slider_pct, mkt_slider_pct, sales_slider_pct, submit_btn])
+        demo.load(on_new_game, outputs=[game_env, status_box, ai_reasoning_box, plot_market_share, plot_budget, plot_quality, player_budget_display, rd_slider_raw, mkt_slider_raw, sales_slider_raw, rd_slider_pct, mkt_slider_pct, sales_slider_pct, submit_btn, analysis_box])
 
     return demo
 
