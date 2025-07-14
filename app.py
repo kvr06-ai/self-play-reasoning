@@ -9,6 +9,7 @@ import gradio as gr
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import spaces
 
 # --- Game Configuration ---
 INITIAL_BUDGET = 1000
@@ -389,6 +390,7 @@ def create_interface():
                 empty_fig = px.line(title="Error loading chart")
                 return empty_fig, empty_fig, empty_fig
 
+        @spaces.GPU
         def game_step_and_update(env, mode, rd_raw, mkt_raw, sales_raw, rd_pct, mkt_pct, sales_pct):
             player_budget = env.player_stats["budget"]
 
