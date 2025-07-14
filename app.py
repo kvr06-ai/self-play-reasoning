@@ -9,7 +9,6 @@ import gradio as gr
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import spaces
 
 # --- Game Configuration ---
 INITIAL_BUDGET = 1000
@@ -347,28 +346,49 @@ def create_interface():
                 analysis_box = gr.Textbox("", label="Strategy Insights", lines=5, interactive=False)
         
         def create_plots(history):
-            df = pd.DataFrame(history)
-            if df.empty:
-                return None, None, None
+            try:
+                df = pd.DataFrame(history)
+                
+                # Create empty figures if no data
+                if df.empty:
+                    # Create empty plot with proper structure
+                    empty_fig_ms = px.line(title="Market Share (%)")
+                    empty_fig_ms.update_layout(yaxis_range=[0,100], legend_title_text='', 
+                                             xaxis_title="Quarter", yaxis_title="Market Share (%)")
+                    
+                    empty_fig_b = px.line(title="Budget ($)")
+                    empty_fig_b.update_layout(legend_title_text='', 
+                                            xaxis_title="Quarter", yaxis_title="Budget ($)")
+                    
+                    empty_fig_q = px.line(title="Product Quality Index")
+                    empty_fig_q.update_layout(legend_title_text='', 
+                                            xaxis_title="Quarter", yaxis_title="Quality Index")
+                    
+                    return empty_fig_ms, empty_fig_b, empty_fig_q
 
-            fig_ms = px.line(df, x="Quarter", y=["Player Market Share", "AI Market Share"], 
-                             title="Market Share (%)", markers=True, 
-                             color_discrete_map={"Player Market Share": "#3b82f6", "AI Market Share": "#ef4444"})
-            fig_ms.update_layout(yaxis_range=[0,100], legend_title_text='')
+                fig_ms = px.line(df, x="Quarter", y=["Player Market Share", "AI Market Share"], 
+                                 title="Market Share (%)", markers=True, 
+                                 color_discrete_map={"Player Market Share": "#3b82f6", "AI Market Share": "#ef4444"})
+                fig_ms.update_layout(yaxis_range=[0,100], legend_title_text='')
 
-            fig_b = px.line(df, x="Quarter", y=["Player Budget", "AI Budget"], 
-                            title="Budget ($)", markers=True, 
-                            color_discrete_map={"Player Budget": "#3b82f6", "AI Budget": "#ef4444"})
-            fig_b.update_layout(legend_title_text='')
+                fig_b = px.line(df, x="Quarter", y=["Player Budget", "AI Budget"], 
+                                title="Budget ($)", markers=True, 
+                                color_discrete_map={"Player Budget": "#3b82f6", "AI Budget": "#ef4444"})
+                fig_b.update_layout(legend_title_text='')
 
-            fig_q = px.line(df, x="Quarter", y=["Player Product Quality", "AI Product Quality"], 
-                            title="Product Quality Index", markers=True, 
-                            color_discrete_map={"Player Product Quality": "#3b82f6", "AI Product Quality": "#ef4444"})
-            fig_q.update_layout(legend_title_text='')
+                fig_q = px.line(df, x="Quarter", y=["Player Product Quality", "AI Product Quality"], 
+                                title="Product Quality Index", markers=True, 
+                                color_discrete_map={"Player Product Quality": "#3b82f6", "AI Product Quality": "#ef4444"})
+                fig_q.update_layout(legend_title_text='')
 
-            return fig_ms, fig_b, fig_q
+                return fig_ms, fig_b, fig_q
+            
+            except Exception as e:
+                print(f"Error creating plots: {e}")
+                # Return empty figures as fallback
+                empty_fig = px.line(title="Error loading chart")
+                return empty_fig, empty_fig, empty_fig
 
-        @spaces.GPU
         def game_step_and_update(env, mode, rd_raw, mkt_raw, sales_raw, rd_pct, mkt_pct, sales_pct):
             player_budget = env.player_stats["budget"]
 
