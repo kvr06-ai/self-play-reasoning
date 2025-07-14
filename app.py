@@ -260,7 +260,7 @@ def generate_post_game_analysis(history, winner):
 def create_interface():
     """Creates the Gradio web interface for the simulator."""
     
-    with gr.Blocks(title=TITLE, theme="gradio/dark") as demo:
+    with gr.Blocks(title=TITLE) as demo:
         game_env = gr.State(BusinessCompetitionEnv())
 
         gr.Markdown(f"# 🎮 {TITLE}")
