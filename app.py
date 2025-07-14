@@ -260,6 +260,7 @@ def generate_post_game_analysis(history, winner):
 def create_interface():
     """Creates the Gradio web interface for the simulator."""
     
+    # Force HF rebuild - theme removed to fix compatibility issues
     with gr.Blocks(title=TITLE) as demo:
         game_env = gr.State(BusinessCompetitionEnv())
 
