@@ -260,7 +260,7 @@ def generate_post_game_analysis(history, winner):
 def create_interface():
     """Creates the Gradio web interface for the simulator."""
     
-    with gr.Blocks(title=TITLE, theme="gradio/dark") as demo:
+    with gr.Blocks(title=TITLE, theme=gr.themes.Soft()) as demo:
         game_env = gr.State(BusinessCompetitionEnv())
 
         gr.Markdown(f"# 🎮 {TITLE}")
@@ -350,20 +350,25 @@ def create_interface():
             df = pd.DataFrame(history)
             if df.empty:
                 return None, None, None
+            
+            dark_template = "plotly_dark"
 
             fig_ms = px.line(df, x="Quarter", y=["Player Market Share", "AI Market Share"], 
                              title="Market Share (%)", markers=True, 
-                             color_discrete_map={"Player Market Share": "#3b82f6", "AI Market Share": "#ef4444"})
+                             color_discrete_map={"Player Market Share": "#3b82f6", "AI Market Share": "#ef4444"},
+                             template=dark_template)
             fig_ms.update_layout(yaxis_range=[0,100], legend_title_text='')
 
             fig_b = px.line(df, x="Quarter", y=["Player Budget", "AI Budget"], 
                             title="Budget ($)", markers=True, 
-                            color_discrete_map={"Player Budget": "#3b82f6", "AI Budget": "#ef4444"})
+                            color_discrete_map={"Player Budget": "#3b82f6", "AI Budget": "#ef4444"},
+                            template=dark_template)
             fig_b.update_layout(legend_title_text='')
 
             fig_q = px.line(df, x="Quarter", y=["Player Product Quality", "AI Product Quality"], 
                             title="Product Quality Index", markers=True, 
-                            color_discrete_map={"Player Product Quality": "#3b82f6", "AI Product Quality": "#ef4444"})
+                            color_discrete_map={"Player Product Quality": "#3b82f6", "AI Product Quality": "#ef4444"},
+                            template=dark_template)
             fig_q.update_layout(legend_title_text='')
 
             return fig_ms, fig_b, fig_q
