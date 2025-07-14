@@ -351,19 +351,13 @@ def create_interface():
             if df.empty:
                 return None, None, None
             
-            fig_ms = px.line(df, x="Quarter", y=["Player Market Share", "AI Market Share"], 
-                             title="Market Share (%)", markers=True, 
-                             color_discrete_map={"Player Market Share": "#3b82f6", "AI Market Share": "#ef4444"})
+            fig_ms = px.line(df, x="Quarter", y=["Player Market Share", "AI Market Share"], title="Market Share (%)", markers=True, color_discrete_map={"Player Market Share": "#3b82f6", "AI Market Share": "#ef4444"})
             fig_ms.update_layout(yaxis_range=[0,100], legend_title_text='')
 
-            fig_b = px.line(df, x="Quarter", y=["Player Budget", "AI Budget"], 
-                            title="Budget ($)", markers=True, 
-                            color_discrete_map={"Player Budget": "#3b82f6", "AI Budget": "#ef4444"})
+            fig_b = px.line(df, x="Quarter", y=["Player Budget", "AI Budget"], title="Budget ($)", markers=True, color_discrete_map={"Player Budget": "#3b82f6", "AI Budget": "#ef4444"})
             fig_b.update_layout(legend_title_text='')
 
-            fig_q = px.line(df, x="Quarter", y=["Player Product Quality", "AI Product Quality"], 
-                            title="Product Quality Index", markers=True, 
-                            color_discrete_map={"Player Product Quality": "#3b82f6", "AI Product Quality": "#ef4444"})
+            fig_q = px.line(df, x="Quarter", y=["Player Product Quality", "AI Product Quality"], title="Product Quality Index", markers=True, color_discrete_map={"Player Product Quality": "#3b82f6", "AI Product Quality": "#ef4444"})
             fig_q.update_layout(legend_title_text='')
 
             return fig_ms, fig_b, fig_q
